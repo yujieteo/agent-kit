@@ -15,8 +15,9 @@ agent-kit replay cases|--agent claude|--agent codex|report
 agent-kit index | search WORDS | search-proof
 ```
 
-`nix run github:yujieteo/agent-kit -- install` installs on any machine with
-Nix. The flake builds `agent-kit`, `apm` and `skill-reach` (the overlap
+`nix run github:yujieteo/agent-kit -- install` is meant to install on any
+machine with Nix. So far it is measured on one Mac only; the test in a fresh
+virtual machine is still owed. The flake builds `agent-kit`, `apm` and `skill-reach` (the overlap
 check); three Python packages that nixpkgs lacks come from PyPI wheels,
 pinned by hash.
 
