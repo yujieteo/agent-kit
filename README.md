@@ -23,6 +23,9 @@ pinned by hash.
 If a skill folder was already there before the first install, apm takes it
 over without a record that it wrote the files, and a later install refuses
 to replace them (measured). Run `agent-kit install --force` once in that case.
+It passes apm's `--force`, which also deploys despite critical findings of
+apm's security scan, so run it only after `agent-kit verify` passes, which
+shows the installed copies are the ones in hashes.json.
 
 ## Where each thing lives
 
@@ -77,11 +80,13 @@ only Codex's own `sandbox_mode` key is in `agents/codex/config.toml`.
   started the same skill as before in 15 of 16 cases each (measured). The two
   video skills competed: for "split this paper into several videos", Codex
   started the narrative skill. Both descriptions now start with the words
-  that decide between them. They must start with them: Codex cuts skill
-  descriptions short when the list of all skills is over its "skills context
-  budget" (read in the Codex 0.170 program text; measured: it quoted the
-  narrative description only up to about 370 characters). For that request,
-  3 runs per agent (measured):
+  that decide between them. They must start with them. Asked to quote
+  the narrative description, Codex stopped at the same place twice, at about
+  370 characters, and said it was cut off there (measured, by Codex's own
+  report). The cause is inferred: the Codex 0.170 program has a "skills
+  context budget" for its list of skills, and this machine has 92. After the
+  change, Codex's quote includes the deciding words (measured the same way).
+  For that request, 3 runs per agent (measured; 3 runs is a small sample):
 
   | Descriptions | Claude Code | Codex |
   |---|---|---|
@@ -89,12 +94,13 @@ only Codex's own `sandbox_mode` key is in `agents/codex/config.toml`.
   | deciding sentence at the end | right 3 of 3 | right 1 of 3 |
   | deciding words at the start | right 3 of 3 | right 2 of 3 (1 `sites`) |
 
-  `sites` is a Codex plugin skill; the request also says "upload to my site".
-  The 9 other video requests (4 of them made up for this test) gave the same
-  skill as before or better.
+  So Codex no longer started the narrative skill for it, in 3 runs. `sites`
+  is a Codex plugin skill; the request also says "upload to my site". The 9
+  other video requests (4 of them made up for this test) gave the same skill
+  as before or better.
 - **Stale memory.** `stale --memory` reported 54 records. After the records
   were corrected and the check skips sentences that call a path old, moved,
-  gone or on another machine, 9 are left; all 9 are history the record states
+  gone or on another machine, 7 are left; each is history the record states
   on purpose (read in the records).
 
 ## Tests
@@ -104,4 +110,6 @@ fail for each of four planted faults: an edited Claude skill copy, an edited
 `~/.agents` copy, an edited Codex AGENTS.md, and an edited source with a
 stale hashes.json. `tests/checks.sh` does the same for the stale check (a
 dead path in the rules, a dead path in a skill, a dead skill name) and the
-overlap check (a copied description). Both pass on 2026-11-22 (measured).
+overlap check (a copied description). It also checks that `stale --memory`
+reports a dead path in a record, and does not report it in a sentence that
+calls it gone. Both pass on 2026-11-22 (measured).

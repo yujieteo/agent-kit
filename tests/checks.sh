@@ -29,6 +29,18 @@ fresh
 printf '\nThen run /no-such-skill on the result.\n' >> "$t/r/skills/deeper-task/SKILL.md"
 expect 1 "stale: planted dead skill name" "$t/r" python3 -m kit stale
 
+# Memory records are reported, not failed, so these read the report.
+memcheck() { # memcheck WANT LABEL SENTENCE: WANT is "report" or "quiet"
+  m="$t/cfg/projects/p/memory"; rm -rf "$t/cfg"; mkdir -p "$m"
+  printf -- '---\nname: x\ndescription: x\n---\n\n%s\n' "$3" > "$m/x.md"
+  out=$(cd "$t/r" && CLAUDE_CONFIG_DIR="$t/cfg" python3 -m kit stale --memory 2>&1)
+  if echo "$out" | grep -q "path ~/no-such-folder-xyz"; then got=report; else got=quiet; fi
+  if [ "$got" = "$1" ]; then echo "ok   $2 ($got)"; else echo "BAD  $2 ($got)"; fail=1; fi
+}
+fresh
+memcheck report "stale --memory: planted dead path in a record" 'The notes are in `~/no-such-folder-xyz/notes.md`.'
+memcheck quiet "stale --memory: the same path, called gone" 'The notes were in `~/no-such-folder-xyz/notes.md`, gone since.'
+
 fresh
 expect 0 "overlap: clean" "$t/r" python3 -m kit overlap
 mkdir "$t/r/skills/task-deepener"
