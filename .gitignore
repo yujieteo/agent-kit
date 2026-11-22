@@ -1,0 +1,3 @@
+# The replay results hold the text of the user's past requests: they stay local.
+results/
+__pycache__/

@@ -1,0 +1,8 @@
+{
+  "cleanupPeriodDays": 36500,
+  "permissions": { "defaultMode": "auto" },
+  "advisorModel": "fable",
+  "theme": "dark",
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true
+}

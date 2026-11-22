@@ -1,0 +1,6 @@
+name: agent-kit
+version: 0.1.0
+description: What the user teaches Claude Code and Codex - skills and standing instructions
+targets:
+  - claude
+  - codex

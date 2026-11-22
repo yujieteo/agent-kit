@@ -1,0 +1,113 @@
+\documentclass[11pt]{article}
+\usepackage{wbslides}
+\deck{Dorigoni: Stokes jumps}
+\newcommand{\Sp}{S^{+}\Phi_0}
+\newcommand{\Sm}{S^{-}\Phi_0}
+\begin{document}
+
+\textslide{Stokes jumps in a two-saddle model}{%
+\textbf{Source.} D.~Dorigoni, \emph{An Introduction to Resurgence, Trans-Series and Alien Calculus},
+\href{https://arxiv.org/abs/1411.3585}{arXiv:1411.3585v2}, §7, eqs.~166--178, 181, 198.\par\medskip
+\textbf{Target.} The two lateral resummations of the perturbative saddle differ by $e^{-1/(2\lambda)}$ times the resummation of the other saddle. Splitting that jump in half on each side cancels the ambiguity and gives a real answer.\par\medskip
+\textbf{Conventions.} $\lambda>0$, $q\in\mathbb Z_{\ge0}$, $a=\tfrac12+q$, $b=\tfrac12-q$, $F(z)={}_2F_1(a,b;1;z)$. $S^{\pm}$ = the paper's lateral resummations. $S f = \frac1\lambda\int_0^\infty e^{-t/\lambda}\hat f(t)\,dt$.\par\medskip
+\textbf{Imported, not derived.} The lateral contour deformation and the hypergeometric discontinuity (eqs.~172--176); Euler's reflection formula; the thimble decomposition.\par\medskip
+\textbf{How to use.} Copy each numbered line and its tag onto your sheet. On a slide with a {\large$\boxed{?}$}, say the line aloud, advance, check, then copy.}
+
+\round{Write the jump as one integral}{Turn the lateral difference into an integral that looks like the other saddle's.}{%
+$F(z)={}_2F_1(a,b;1;z)$\\ $a+b=1$\\[0.5ex]
+$A=\tfrac{2\pi i}{\Gamma(a)\Gamma(b)}$\\[0.5ex]
+$\operatorname{Disc}\hat\Phi_0(t)=A\sqrt{2\pi}\,F(1-2t)$, $t>\tfrac12$\\[0.5ex]
+$S\Phi_1=\tfrac{\sqrt{2\pi}}{\lambda}\displaystyle\int_0^\infty e^{-u/\lambda}F(-2u)\,du$}
+
+\given{\Sp-\Sm=\frac1\lambda\int_{1/2}^{\infty}e^{-t/\lambda}\operatorname{Disc}\hat\Phi_0(t)\,dt}{lateral contours}
+ {Deform the upper contour onto the lower one. What is left is the integral of the jump across the cut, which starts at $t=\tfrac12$.}
+ {This is the paper's exact analytic input. Everything after it is algebra.}
+
+\step{Substitute the discontinuity.}
+ {=\frac{A\sqrt{2\pi}}{\lambda}\int_{1/2}^{\infty}e^{-t/\lambda}F(1-2t)\,dt}{cut formula}
+ {Replace $\operatorname{Disc}\hat\Phi_0(t)$ by $A\sqrt{2\pi}F(1-2t)$ from the margin. Pull the constants out.}
+ {It exposes a hypergeometric function, which we can compare with the other saddle's.}
+
+\choosestep{The cut starts at $\tfrac12$, but $S\Phi_1$ integrates from $0$. Change variable.}
+ {=\frac{A\sqrt{2\pi}}{\lambda}\int_{0}^{\infty}e^{-(u+1/2)/\lambda}F(-2u)\,du}{$t=u+\tfrac12$}
+ {Limits: $\tfrac12\mapsto0$. Argument: $1-2t=-2u$. Measure: $dt=du$.}
+ {The integrand now has the shape of $S\Phi_1$ in the margin.}
+
+\round{Extract the action and the multiplier}{Show the jump is $A\,e^{-1/(2\lambda)}S\Phi_1$ and compute $A$.}{%
+$S\Phi_1=\tfrac{\sqrt{2\pi}}{\lambda}\displaystyle\int_0^\infty e^{-u/\lambda}F(-2u)\,du$\\[0.5ex]
+$A=\tfrac{2\pi i}{\Gamma(a)\Gamma(b)}$\\ $a=\tfrac12+q$, $b=\tfrac12-q$}
+
+\step{Split the exponential.}
+ {=A\,e^{-1/(2\lambda)}\,\frac{\sqrt{2\pi}}{\lambda}\int_0^\infty e^{-u/\lambda}F(-2u)\,du}{$e^{x+y}=e^xe^y$}
+ {$e^{-(u+1/2)/\lambda}=e^{-1/(2\lambda)}e^{-u/\lambda}$, and the first factor does not depend on $u$.}
+ {It isolates the exponentially small factor: the action of the second saddle.}
+
+\step{Name the remaining integral.}
+ {\Sp-\Sm=A\,e^{-1/(2\lambda)}\,S\Phi_1}{def.\ of $S\Phi_1$}
+ {What follows $e^{-1/(2\lambda)}$ is exactly $S\Phi_1$ from the margin.}
+ {This is eq.~178: the jump is the other saddle, weighted by a multiplier $A$.}
+
+\step{Use $a+b=1$ in $A$.}
+ {A=\frac{2\pi i}{\Gamma(a)\Gamma(1-a)}}{$b=1-a$}
+ {$a+b=\tfrac12+q+\tfrac12-q=1$.}
+ {It puts $A$ in the shape of the reflection formula.}
+
+\step{Apply the reflection formula.}
+ {A=2i\sin(\pi a)}{reflection}
+ {$\Gamma(a)\Gamma(1-a)=\pi/\sin(\pi a)$, so $2\pi i/(\pi/\sin\pi a)=2i\sin\pi a$.}
+ {The Stokes constant no longer has gamma functions.}
+
+\step{Evaluate at $a=\tfrac12+q$.}
+ {A=2i(-1)^q}{$\sin(\tfrac\pi2+\pi q)$}
+ {$\sin(\tfrac\pi2+\pi q)=\cos(\pi q)=(-1)^q$.}
+ {This is the model's coefficient, eq.~181.}
+
+\round{Cancel the ambiguity}{Correct each side by half the jump, so both sides agree.}{%
+$E=e^{-1/(2\lambda)}$, $T=S\Phi_1$\\[0.5ex]
+$\Sp-\Sm=A\,E\,T$ \ (line 5)\\[0.5ex]
+$A=2i(-1)^q$ \ (line 8)\\[0.5ex]
+$\Phi_1$ has no jump in this direction (eq.~181).}
+
+\choosestep{Remove the jump symmetrically. What do you subtract on each side?}
+ {M^{\pm}=S^{\pm}\Phi_0\mp i(-1)^q\,E\,T}{half the jump}
+ {Half of $A$ is $i(-1)^q$. Subtract it above the cut, add it below.}
+ {Neither side is preferred, so the corrected value can be real.}
+
+\step{Subtract the two corrected values.}
+ {M^+-M^-=(\Sp-\Sm)-2i(-1)^q\,E\,T}{subtract}
+ {$\mp$ on each side gives $-\tfrac A2ET-\tfrac A2ET=-AET$.}
+ {It puts the jump and the correction in one line.}
+
+\step{Insert the jump.}
+ {M^+-M^-=0}{line 5}
+ {Line 5 says $\Sp-\Sm=AET=2i(-1)^qET$.}
+ {The corrected value does not depend on the side: no ambiguity.}
+
+\step{Read off the saddle parameter in $\Phi_0+\sigma_1E\,\Phi_1$.}
+ {\sigma_1^{\pm}=\mp\,i(-1)^q}{match $ET$}
+ {Compare $M^\pm$ with $S^\pm(\Phi_0+\sigma_1E\Phi_1)$, coefficient of $ET$.}
+ {These are the two choices in eq.~198.}
+
+\round{Reality}{Show the corrected value is real.}{%
+$M^{\pm}=S^{\pm}\Phi_0\mp i(-1)^qET$\\[0.5ex]
+$E,T$ real for $\lambda>0$\\[0.5ex]
+$M^+=M^-$ \ (line 11)}
+
+\given{\overline{\Sp}=\Sm}{conjugation}
+ {For real $\lambda$, conjugation swaps the two lateral sums (paper's convention).}
+ {}
+
+\step{Conjugate $M^+$.}
+ {\overline{M^+}=\Sm+i(-1)^q\,E\,T=M^-}{$\bar i=-i$}
+ {}{}
+
+\step{Conclude.}
+ {\overline{M^+}=M^+}{line 11}
+ {}{The corrected sum is real.}
+
+\textslide{What this did and did not show}{%
+\textbf{Shown.} The lateral jump is $2i(-1)^q e^{-1/(2\lambda)}S\Phi_1$ (lines 1--8). Half of it on each side cancels the ambiguity (lines 9--11) and gives a real value (lines 13--15).\par\medskip
+\textbf{Not shown.} That this corrected value equals the original integral. That needs the thimble intersection numbers, which are imported.}
+
+\fullchain[8]
+\end{document}

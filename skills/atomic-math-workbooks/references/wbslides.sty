@@ -1,0 +1,235 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{wbslides}[2026/11/14 atomic math workbook slides]
+\RequirePackage[paperwidth=200mm,paperheight=112.5mm,margin=0pt]{geometry}
+\RequirePackage{fontspec}
+\RequirePackage{amsmath,amssymb}
+\RequirePackage{unicode-math}
+% Inter from its .ttf files; build with OSFONTDIR set to their folder (formats.md).
+\setmainfont{Inter}[Extension=.ttf,UprightFont=*-Regular,BoldFont=*-Bold,ItalicFont=*-Italic,BoldItalicFont=*-BoldItalic]
+\setmathfont{STIX Two Math}
+\setmathrm{STIXTwoText-Regular.otf}[BoldFont=STIXTwoText-Bold.otf,ItalicFont=STIXTwoText-Italic.otf]
+\RequirePackage{xcolor}
+\RequirePackage[hidelinks]{hyperref}
+\definecolor{ink}{HTML}{111111}
+\definecolor{mid}{HTML}{555555}
+\definecolor{faint}{HTML}{9A9A9A}
+\definecolor{rule}{HTML}{D6D6D6}
+\definecolor{hl}{HTML}{F3F3F3}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\color{ink}
+\linespread{1.15}
+
+\ExplSyntaxOn
+% chain storage
+\seq_new:N \g_wb_num_seq
+\seq_new:N \g_wb_expr_seq
+\seq_new:N \g_wb_tag_seq
+\int_new:N \g_wb_n_int
+\int_new:N \g_wb_roundstart_int
+\tl_new:N \g_wb_deck_tl
+\tl_new:N \g_wb_round_tl
+\tl_new:N \g_wb_notation_tl
+\int_new:N \l_wb_from_int
+\int_new:N \l_wb_count_int
+
+\NewDocumentCommand \deck {m} { \tl_gset:Nn \g_wb_deck_tl {#1} }
+% \round{title}{notation shown in margin on every slide of the round}
+\tl_new:N \g_wb_goal_tl
+% \round{title}{one-line goal}{notation}
+\NewDocumentCommand \round {m +m +m}
+ {
+  \tl_gset:Nn \g_wb_round_tl {#1}
+  \tl_gset:Nn \g_wb_goal_tl {#2}
+  \tl_gset:Nn \g_wb_notation_tl {#3}
+  \int_gset:Nn \g_wb_roundstart_int { \g_wb_n_int + 1 }
+ }
+
+\cs_new_protected:Npn \wb_store:nn #1#2
+ {
+  \int_gincr:N \g_wb_n_int
+  \seq_gput_right:Ne \g_wb_num_seq { \int_use:N \g_wb_n_int }
+  \seq_gput_right:Nn \g_wb_expr_seq {#1}
+  \seq_gput_right:Nn \g_wb_tag_seq {#2}
+ }
+
+% one chain line: #1 number, #2 expr, #3 tag, #4 colour, #5 size
+\cs_new_protected:Npn \wb_line:nnnnn #1#2#3#4#5
+ {
+  \par\noindent
+  \makebox[2.6em][l]{\color{#4}\small(#1)}
+  \parbox[c]{\dimexpr\linewidth-2.6em-6.8em\relax}
+   { \color{#4} #5 $\displaystyle #2$ }
+  \makebox[6.8em][r]{\color{#4}\footnotesize #3}
+  \par\vspace{0.55ex}
+ }
+\cs_new_protected:Npn \wb_stored_line:nn #1#2 % index, colour
+ {
+  \wb_line:nnnnn
+   { \seq_item:Nn \g_wb_num_seq {#1} }
+   { \seq_item:Nn \g_wb_expr_seq {#1} }
+   { \seq_item:Nn \g_wb_tag_seq {#1} }
+   {#2} { \large }
+ }
+% context: last k lines of this round (k = 3)
+\cs_new_protected:Npn \wb_context:
+ {
+  \int_set:Nn \l_wb_from_int
+   { \int_max:nn { \g_wb_roundstart_int } { \g_wb_n_int - 2 } }
+  \int_compare:nNnT { \l_wb_from_int } > { \g_wb_roundstart_int }
+   { \par\noindent\hspace*{2.6em}{\color{faint}\footnotesize\ldots}\par\vspace{0.3ex} }
+  \int_step_inline:nnn { \l_wb_from_int } { \g_wb_n_int }
+   { \wb_stored_line:nn {##1} {faint} }
+  \int_compare:nNnT { \g_wb_roundstart_int } > { \g_wb_n_int }
+   { \par\noindent{\color{mid}\small\bfseries Goal.~}{\color{mid}\small \g_wb_goal_tl}\par\vspace{1ex} }
+ }
+\cs_new_protected:Npn \wb_lines_label:n #1
+ { \int_use:N \g_wb_roundstart_int \,--\, #1 }
+
+% slide frame: #1 lines label, #2 main, #3 why works, #4 why do
+\cs_new_protected:Npn \wb_slide:nnnn #1#2#3#4
+ {
+  \clearpage
+  \vbox to \paperheight
+   {
+    \vspace*{7mm}
+    \hbox to \paperwidth
+     {
+      \hspace*{10mm}
+      {\color{mid}\footnotesize \g_wb_deck_tl \quad\textbar\quad \g_wb_round_tl}
+      \hfill
+      {\color{faint}\footnotesize #1 \quad\textbar\quad \thepage}
+      \hspace*{10mm}
+     }
+    \vspace{2mm}
+    \hbox to \paperwidth { \hspace*{10mm}{\color{rule}\rule{\dimexpr\paperwidth-20mm\relax}{0.4pt}}\hfill }
+    \vspace{4mm}
+    \hbox to \paperwidth
+     {
+      \hspace*{10mm}
+      \begin{minipage}[t]{110mm} #2 \end{minipage}
+      \hspace{6mm}
+      {\color{rule}\vrule width 0.4pt}
+      \hspace{5mm}
+      \begin{minipage}[t]{59mm}
+       \footnotesize\linespread{1.12}\selectfont \raggedright
+       \tl_if_empty:NF \g_wb_notation_tl
+        { {\color{mid}\bfseries Keep}\par\vspace{0.4ex} \g_wb_notation_tl \par\vspace{2ex} }
+       \tl_if_blank:nF {#3}
+        { {\color{mid}\bfseries Why~it~works}\par\vspace{0.4ex} #3 \par\vspace{2ex} }
+       \tl_if_blank:nF {#4}
+        { {\color{mid}\bfseries Why~do~it}\par\vspace{0.4ex} #4 \par }
+      \end{minipage}
+      \hfill
+     }
+    \vfill
+   }
+ }
+
+% current line boxes
+\cs_new_protected:Npn \wb_current:nnnn #1#2#3#4 % instruction, expr-or-blank, tag, filled?
+ {
+  \vspace{1.2ex}
+  \tl_if_blank:nF {#1} { {\color{mid}\small #1}\par\vspace{0.8ex} }
+  \colorbox{hl}
+   {
+    \parbox{\dimexpr\linewidth-2\fboxsep\relax}
+     { \vspace{0.6ex}
+       \wb_line:nnnnn { \int_eval:n { \g_wb_n_int + 1 } } {#2} {#3} {ink} { \large }
+       \vspace{0.2ex} }
+   }
+ }
+\cs_new:Npn \wb_blank: { \color{faint}\boxed{\phantom{xxxxxx}?\phantom{xxxxxx}} }
+
+% \given{expr}{tag}{why works}{why do}  -- worked line, one slide
+\NewDocumentCommand \given {m m +m +m}
+ {
+  \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
+   { \wb_context: \wb_current:nnnn { Copy~this~line. } {#1} {#2} {} }
+   {#3} {#4}
+  \wb_store:nn {#1} {#2}
+ }
+% \step{instruction}{expr}{tag}{why works}{why do}  -- prompt slide, then answer slide
+\NewDocumentCommand \step {m m m +m +m}
+ {
+  \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
+   { \wb_context: \wb_current:nnnn {#1} { \wb_blank: } {#3} {} }
+   {#4} {#5}
+  \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
+   { \wb_context: \wb_current:nnnn {#1} {#2} {#3} {} }
+   {#4} {#5}
+  \wb_store:nn {#2} {#3}
+ }
+% \choosestep{question}{expr}{tag}{why works}{why do} -- tag hidden, then tag, then line
+\NewDocumentCommand \choosestep {m m m +m +m}
+ {
+  \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
+   { \wb_context: \wb_current:nnnn {#1} { \wb_blank: } { \color{faint}which~move? } {} }
+   {} {#5}
+  \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
+   { \wb_context: \wb_current:nnnn {#1} { \wb_blank: } {#3} {} }
+   {#4} {#5}
+  \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
+   { \wb_context: \wb_current:nnnn {#1} {#2} {#3} {} }
+   {#4} {#5}
+  \wb_store:nn {#2} {#3}
+ }
+
+% free slide: \textslide{title}{body}
+\NewDocumentCommand \textslide {m +m}
+ {
+  \clearpage
+  \vbox to \paperheight
+   {
+    \vspace*{9mm}
+    \hbox to \paperwidth
+     {
+      \hspace*{12mm}
+      \begin{minipage}[t]{176mm}
+       {\Large\bfseries #1}\par\vspace{3mm}
+       {\color{rule}\rule{176mm}{0.4pt}}\par\vspace{3mm}
+       \small\linespread{1.3}\selectfont #2
+      \end{minipage}
+      \hfill
+     }
+    \vfill
+   }
+ }
+
+% whole chain, n lines per slide
+\NewDocumentCommand \fullchain {O{9}}
+ {
+  \int_set:Nn \l_wb_count_int { 0 }
+  \int_step_inline:nn { \g_wb_n_int }
+   {
+    \int_compare:nNnT { \int_mod:nn { ##1 - 1 } {#1} } = { 0 }
+     {
+      \int_compare:nNnT { ##1 } > { 1 } { \wb_chain_close: }
+      \clearpage
+      \vbox to \paperheight \bgroup
+       \vspace*{8mm}
+       \hbox to \paperwidth \bgroup
+        \hspace*{12mm}
+        \begin{minipage}[t]{176mm}
+         {\color{mid}\footnotesize \g_wb_deck_tl \quad\textbar\quad Your~sheet~should~now~read
+          \hfill \thepage}\par\vspace{2mm}
+         {\color{rule}\rule{176mm}{0.4pt}}\par\vspace{3mm}
+     }
+    \wb_line:nnnnn
+     { \seq_item:Nn \g_wb_num_seq {##1} }
+     { \seq_item:Nn \g_wb_expr_seq {##1} }
+     { \seq_item:Nn \g_wb_tag_seq {##1} }
+     {ink} { \normalsize }
+   }
+  \wb_chain_close:
+ }
+\cs_new_protected:Npn \wb_chain_close:
+ {
+        \end{minipage}
+        \hfill
+       \egroup
+       \vfill
+      \egroup
+ }
+\ExplSyntaxOff
+\endinput
