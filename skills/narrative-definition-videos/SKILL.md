@@ -1,6 +1,6 @@
 ---
 name: narrative-definition-videos
-description: Turn a paper into a 15-minute narrated explainer video that tells the paper as one story — the question, the central objects, the main theorems, the key steps of their proofs, and two or three cases side by side — with the exact definition of each technical word of the main statements woven into the sentence that uses it. Same cards, colours, voice, forgetting curve and build as definition-embedded-videos, but the script is your own narrative, not the source read in order. Use when the user asks for a "narrative", "15-minute", "story" or "overview" definition-embedded video of a paper, or for an explainer that does not read the whole text.
+description: Turn a paper into a 15-minute narrated explainer video that tells the paper as one story — the question, the central objects, the main theorems, the key steps of their proofs, and two or three cases side by side — with the exact definition of each technical word of the main statements woven into the sentence that uses it. Same cards, colours, voice, forgetting curve and build as definition-embedded-videos, but the script is your own narrative, not the source read in order. Use when the user asks for a "narrative", "15-minute", "story" or "overview" definition-embedded video of a paper, or for an explainer that does not read the whole text. It makes one video per paper. Do not use it to split one paper or book into several videos, or for one video per section; use definition-embedded-videos for that.
 ---
 
 # Narrative definition videos

@@ -5,7 +5,8 @@ from __future__ import annotations
 import sys
 
 USAGE = """agent-kit COMMAND
-  install             apm install -g this repo, write Codex AGENTS.md, set the settings keys, verify
+  install [--force]   apm install -g this repo, write Codex AGENTS.md, set the settings keys, verify
+                      (--force replaces skill copies that were there before the first install)
   verify              the installed files against hashes.json, apm audit --ci, the settings keys
   lock [--check]      install into an empty home and write (or compare) hashes.json
   inventory [--show]  each entry of both agent folders is in inventory.tsv
@@ -23,7 +24,7 @@ def main() -> int:
     cmd = a[0] if a else "help"
     if cmd == "install":
         from .install import cmd_install
-        return cmd_install()
+        return cmd_install("--force" in a[1:])
     if cmd == "verify":
         from .install import cmd_verify
         return cmd_verify()

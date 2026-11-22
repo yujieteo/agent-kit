@@ -185,7 +185,9 @@ def rule_files() -> list[Path]:
 PR_DONE = re.compile(r"\b(merged|closed)\b", re.I)
 PR_OPEN = re.compile(r"\b(open|opened|draft|waits?|waiting|not merged|ready)\b", re.I)
 # A branch the record itself calls gone or local is not a claim about GitHub.
-BRANCH_SKIP = re.compile(r"\b(deleted|gone|removed|not pushed|local branch|locally)\b", re.I)
+BRANCH_SKIP = re.compile(r"\b(deleted|gone|removed|merged|not pushed|local branch|locally)\b", re.I)
+# A path the record itself places on another machine, or calls old or gone, is history.
+PATH_SKIP = re.compile(r"\b(on the (desktop|server)|leftovers?|moved|gone|old|trashed|cleared|deleted|removed|dead)\b", re.I)
 SLUG_PR_RE = re.compile(r"\b([\w-]+/[\w.-]+)#(\d+)")
 REPO_AT_RE = re.compile(r"~/src/([\w.-]+)|github\.com/[\w-]+/([\w.-]+)|\b[\w-]+/([\w.-]+)#\d+|\b" + OWNER + r"/([\w-]+)")
 
@@ -201,7 +203,7 @@ def repo_before(para: str, pos: int, default: str | None) -> str | None:
     for m in REPO_AT_RE.finditer(para[:pos]):
         last = next(g for g in m.groups() if g)
     for m in re.finditer(r"\b([\w-]+) (?:PRs?|branch)\b", para[:pos]):
-        if repo_slug(m.group(1)) and (last is None or True):
+        if repo_slug(m.group(1)):
             last = m.group(1)
     return last or default
 
@@ -235,7 +237,9 @@ def check_memory(path: Path) -> list[str]:
                 slug = repo_slug(name) if name else None
                 if slug and not branch_exists(slug, branch):
                     out.append(f"branch {branch} is not on GitHub ({slug}): {sent.strip()[:110]!r}")
-    for p in sorted(set(PATH_RE.findall(text))):
+    live = {p for para in re.split(r"\n\s*\n|\n(?=- )", text) for sent in sentences(para)
+            if not PATH_SKIP.search(sent) for p in PATH_RE.findall(sent)}
+    for p in sorted(live):
         if not placeholder(p) and not expand(p).exists():
             out.append(f"path {p} does not exist on this machine")
     return out

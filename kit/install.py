@@ -64,8 +64,11 @@ def apm_env(home: Path, claude: Path, codex: Path, apm: Path) -> dict[str, str]:
     return env
 
 
-def apm_install(env: dict[str, str], source: Path) -> None:
-    r = run([apm_bin(), "install", "-g", "-t", "claude,codex", str(source)], env=env,
+def apm_install(env: dict[str, str], source: Path, force: bool = False) -> None:
+    # apm adopts a skill copy that was there before the first install without a
+    # record that it wrote it, and later refuses to replace it (measured);
+    # --force lets it, once.
+    r = run([apm_bin(), "install", "-g", "-t", "claude,codex", *(["--force"] if force else []), str(source)], env=env,
             capture_output=True)
     if r.returncode:
         raise SystemExit("apm install failed:\n" + r.stdout + r.stderr)
@@ -206,10 +209,10 @@ def settings_problems(claude: Path, codex: Path) -> list[str]:
 
 # ---- install and verify -----------------------------------------------------
 
-def cmd_install() -> int:
+def cmd_install(force: bool = False) -> int:
     claude, codex, apm = claude_dir(), codex_dir(), apm_home()
     apm.mkdir(parents=True, exist_ok=True)
-    apm_install(apm_env(HOME, claude, codex, apm), REPO)
+    apm_install(apm_env(HOME, claude, codex, apm), REPO, force)
     write_agents_md(codex)
     claude_settings_merge(claude / "settings.json")
     codex_config_merge(codex / "config.toml")

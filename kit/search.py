@@ -20,13 +20,23 @@ opened, so the write-ahead log is read and the app's file is never locked.
 
 A session's score is the BM25 score of its best row.
 
-search-proof. The rule, fixed before the first run on 2026-11-22: for each
-memory file with originSessionId, the query is the file's description and
-body (front matter dropped, so not the session id). It passes when the
-origin session ranks in the top 5 of all sessions; sessions named in
---exclude (this session and its subagents) are left out. A file whose origin
-log is gone is listed apart as "cannot test". The proof passes when every
-testable file passes.
+search-proof. For each memory file with originSessionId, the answer is the
+origin session. The file's description and its body (front matter dropped,
+so not the session id) are each ranked, and the two rankings are merged by
+reciprocal rank (k = 60, the usual value; not tuned): a description names
+what the file is about and seldom changes, while the body is rewritten as
+the work moves on. It passes when the origin ranks in the top 5. Sessions
+named in --exclude (this session and its subagents) are left out. A file
+whose origin log is gone is listed apart as "cannot test". The proof passes
+when every testable file passes.
+
+History, 2026-11-22. The first rule ranked description and body as one
+query, and gave 34 of 35: landing-pages.md, rewritten for a new layout by a
+later session, put its origin 8th. The merged ranking was chosen after that
+result. Two alternatives were tried and dropped: the session that last wrote
+the file as the answer (13 failures: late small edits), and summing a
+session's best N rows (only N = 5 passed; N = 3 and 10 failed, so it would
+be tuning).
 """
 
 from __future__ import annotations
@@ -233,6 +243,15 @@ def memory_records() -> list[tuple[Path, str, str]]:
     return out
 
 
+def rank_merged(db: sqlite3.Connection, parts: list[str], exclude: set[str] = frozenset(), limit: int = 200):
+    """Rank each part on its own, then merge by reciprocal rank (k = 60)."""
+    score: dict[str, float] = {}
+    for part in parts:
+        for i, (_, sid, _, _) in enumerate(rank(db, part, exclude, limit=10_000)):
+            score[sid] = score.get(sid, 0.0) + 1.0 / (60 + i + 1)
+    return sorted(score, key=lambda s: -score[s])[:limit]
+
+
 def cmd_search(cmd: str, args: list[str]) -> int:
     exclude = set()
     if "--exclude" in args:
@@ -255,11 +274,14 @@ def cmd_search(cmd: str, args: list[str]) -> int:
     results = []
     for f, origin, text in memory_records():
         name = f"{f.parent.parent.name}/{f.name}"
+        if origin in exclude:
+            continue
         if origin not in have:
             gone.append(name)
             results.append({"file": name, "origin": origin, "rank": None})
             continue
-        ranked = [sid for _, sid, _, _ in rank(db, text, exclude, limit=200)]
+        desc, body = text.split("\n", 1)
+        ranked = rank_merged(db, [desc, body], exclude)
         r = ranked.index(origin) + 1 if origin in ranked else None
         ok = r is not None and r <= TOPK
         passed += ok

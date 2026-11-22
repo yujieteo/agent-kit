@@ -5,7 +5,7 @@ instructions, and each agent's own settings. One command installs them into
 both agents, on any machine, and checks them by SHA-256.
 
 ```sh
-agent-kit install        # apm install, Codex AGENTS.md, settings merge, then verify
+agent-kit install [--force] # apm install, Codex AGENTS.md, settings merge, then verify
 agent-kit verify         # live files against hashes.json, `apm audit --ci`, settings keys
 agent-kit lock [--check] # rebuild hashes.json in an empty home (or compare with it)
 agent-kit inventory      # sort every file of both config folders (inventory.tsv)
@@ -15,8 +15,14 @@ agent-kit replay cases|--agent claude|--agent codex|report
 agent-kit index | search WORDS | search-proof
 ```
 
-`nix build` gives `agent-kit` and `apm` (flake.nix). The overlap check also
-needs skill-reach, which nixpkgs cannot build yet (see flake.nix).
+`nix run github:yujieteo/agent-kit -- install` installs on any machine with
+Nix. The flake builds `agent-kit`, `apm` and `skill-reach` (the overlap
+check); three Python packages that nixpkgs lacks come from PyPI wheels,
+pinned by hash.
+
+If a skill folder was already there before the first install, apm takes it
+over without a record that it wrote the files, and a later install refuses
+to replace them (measured). Run `agent-kit install --force` once in that case.
 
 ## Where each thing lives
 
@@ -58,6 +64,25 @@ only Codex's own `sandbox_mode` key is in `agents/codex/config.toml`.
 - **adobe/pi-session-search** reads only pi's logs, and matches without
   ranking (read in the source; its 47 tests pass, measured). `agent-kit
   search` ranks every store of both agents with SQLite FTS5.
+
+## What the checks found (2026-11-22)
+
+- **Session search.** `search-proof` looks for the session that wrote each
+  memory file. It ranks the file's description and its body separately, and
+  merges the two rankings by reciprocal rank. Result: 38 of 38 found in the top 5, 31
+  cannot be tested because their session log is gone (measured). One ranking
+  of the whole text found 34 of 37 (an earlier run). Taking the last session that wrote the
+  file found fewer.
+- **Competing skills.** In a replay of 50 past requests, Claude and Codex
+  started the same skill as before in 15 of 16 cases each (measured). The two
+  video skills competed: for "split this paper into several videos", Codex
+  started the narrative skill. Both descriptions now say which one splits a
+  text into several videos. The replay before and after the change is in
+  results/replay/ on the machine that ran it (not in the repository).
+- **Stale memory.** `stale --memory` reported 54 records. After the records
+  were corrected and the check skips sentences that call a path old, moved,
+  gone or on another machine, 9 are left; all 9 are history the record states
+  on purpose (read in the records).
 
 ## Tests
 
