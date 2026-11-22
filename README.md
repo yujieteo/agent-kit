@@ -76,9 +76,22 @@ only Codex's own `sandbox_mode` key is in `agents/codex/config.toml`.
 - **Competing skills.** In a replay of 50 past requests, Claude and Codex
   started the same skill as before in 15 of 16 cases each (measured). The two
   video skills competed: for "split this paper into several videos", Codex
-  started the narrative skill. Both descriptions now say which one splits a
-  text into several videos. The replay before and after the change is in
-  results/replay/ on the machine that ran it (not in the repository).
+  started the narrative skill. Both descriptions now start with the words
+  that decide between them. They must start with them: Codex cuts skill
+  descriptions short when the list of all skills is over its "skills context
+  budget" (read in the Codex 0.170 program text; measured: it quoted the
+  narrative description only up to about 370 characters). For that request,
+  3 runs per agent (measured):
+
+  | Descriptions | Claude Code | Codex |
+  |---|---|---|
+  | before | right 3 of 3 | right 0 of 3 (2 narrative, 1 `sites`) |
+  | deciding sentence at the end | right 3 of 3 | right 1 of 3 |
+  | deciding words at the start | right 3 of 3 | right 2 of 3 (1 `sites`) |
+
+  `sites` is a Codex plugin skill; the request also says "upload to my site".
+  The 9 other video requests (4 of them made up for this test) gave the same
+  skill as before or better.
 - **Stale memory.** `stale --memory` reported 54 records. After the records
   were corrected and the check skips sentences that call a path old, moved,
   gone or on another machine, 9 are left; all 9 are history the record states
