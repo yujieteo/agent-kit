@@ -15,7 +15,8 @@ USAGE = """agent-kit COMMAND
   overlap             skill-reach overlap of the skill descriptions, red over the limits
   replay ...          replay past requests in a fresh Claude Code and Codex (see kit/replay.py)
   search QUERY        rank the sessions of both agents for QUERY
-  search-proof        each memory file finds the session that made it
+  search-proof cases|choose|score   real past searches from the logs, a rule chosen on
+                      the older ones, scored once on the newer ones (see kit/search.py)
 """
 
 

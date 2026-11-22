@@ -11,12 +11,24 @@ So this runner detects a start the way skill-reach does for Claude (a
 counts every skill, plugin skills too.
 
 Cases (`replay cases`): the first real request of each past session, from
-both agents' logs. The label is the skill that started in that session:
-the first Skill call or /skill command (Claude), or the first read of a
-skills/NAME/SKILL.md (Codex), before the user's next request. A /skill command is replayed without the
-command, so the request must win on its words alone. Every session with one
-of the repository's skills is a case, plus a fixed random sample (seed 0) of
-sessions where none started.
+both agents' logs. `label` is the skill that started in that session: the
+first Skill call or /skill command (Claude), or the first read of a
+skills/NAME/SKILL.md (Codex), before the user's next request. A /skill command
+is replayed without the command, so the request must win on its words alone.
+Every session with one of the repository's skills is a case, plus a fixed
+random sample (seed 0) of sessions where none started.
+
+Answers (`report`): a replay is right when it starts the skill that the
+original session shows was wanted, not merely the one that started then. The
+marks are in results/replay/marks/marks.jsonl, made by a separate agent that saw
+only the original sessions, by the rule in marks/RULE.md: was the work kept,
+or did the user correct it?
+
+Before/after (`replay --agent A --before REV --cases FILE --runs N`): each
+request runs N times with the skill descriptions at REV and N times with the
+current ones, in pairs (run i of both, order drawn with Random(i)). `report`
+gives each pass rate with a 95% Wilson range, an exact McNemar test on the
+pairs, and a sign-flip test over requests.
 
 Claude: `claude -p` in an empty folder, the user's own CLAUDE_CONFIG_DIR (its
 sign-in, skills and plugins), --tools Skill (so the request does no work),
@@ -31,6 +43,7 @@ It is stopped at the first SKILL.md it reads.
 from __future__ import annotations
 
 import json
+from collections import Counter
 import os
 import random
 import re
@@ -185,7 +198,7 @@ def run_claude(req: str, model: str, timeout: int = 180) -> dict:
                "--no-session-persistence", "--max-turns", "2", "--model", model]
         p = subprocess.Popen(cmd, cwd=wd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
                              start_new_session=True)
-        started, listed, t0 = None, None, time.time()
+        started, listed, t0, result = None, None, time.time(), None
         try:
             for line in p.stdout:
                 try:
@@ -198,31 +211,52 @@ def run_claude(req: str, model: str, timeout: int = 180) -> dict:
                     if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Skill":
                         started = (b.get("input") or {}).get("skill")
                         break
+                if d.get("type") == "result":
+                    result = d
                 if started or d.get("type") == "result" or time.time() - t0 > timeout:
                     break
         finally:
             os.killpg(p.pid, signal.SIGTERM)
             p.wait()
-        return {"started": started or "none", "skills_listed": listed, "seconds": round(time.time() - t0, 1)}
+        out = {"started": started or "none", "skills_listed": listed, "seconds": round(time.time() - t0, 1)}
+        if not started and (result is None or result.get("is_error")):
+            out["error"] = "no result" if result is None else str(result.get("result") or result.get("subtype"))[:200]
+        return out
 
 
-def codex_home(base: Path) -> tuple[Path, Path]:
+# A replay must not act. A request that starts no skill runs on, and these plugins can
+# drive the Mac outside the read-only sandbox: on 2026-11-22 replays opened Google Chrome
+# and set off macOS keychain prompts (measured). None of the four holds a skill, so the
+# list of skills Codex sees is the same without them.
+NO_PLUGINS = ("browser@openai-bundled", "chrome@openai-bundled",
+              "computer-use@openai-bundled", "unified-computer-use@openai-bundled")
+
+
+def codex_home(base: Path, skills: Path = REPO / "skills") -> tuple[Path, Path]:
     home, cx = base / "home", base / "codex"
     (home / ".agents").mkdir(parents=True)
-    shutil.copytree(REPO / "skills", home / ".agents" / "skills")
+    shutil.copytree(skills, home / ".agents" / "skills")
     cx.mkdir()
     shutil.copy2(codex_dir() / "auth.json", cx / "auth.json")
     os.chmod(cx / "auth.json", 0o600)
     lines, skip = [], False
     for l in (codex_dir() / "config.toml").read_text().splitlines():
         if l.startswith("["):
-            skip = l.startswith("[mcp_servers")
+            skip = l.startswith("[mcp_servers") or any(l == f'[plugins."{n}"]' for n in NO_PLUGINS)
         if skip or l.startswith("notify"):
             continue
         lines.append(l)
+    lines += [f'\n[plugins."{n}"]\nenabled = false' for n in NO_PLUGINS]
     (cx / "config.toml").write_text("\n".join(lines) + "\n")
-    if (codex_dir() / "plugins").is_dir():
-        (cx / "plugins").symlink_to(codex_dir() / "plugins")
+    # The user's plugins, linked one by one, without the ones in NO_PLUGINS.
+    cache = codex_dir() / "plugins" / "cache"
+    if cache.is_dir():
+        for src in cache.iterdir():
+            if src.is_dir():
+                for plug in src.iterdir():
+                    if f"{plug.name}@{src.name}" not in NO_PLUGINS:
+                        (cx / "plugins" / "cache" / src.name).mkdir(parents=True, exist_ok=True)
+                        (cx / "plugins" / "cache" / src.name / plug.name).symlink_to(plug)
     return home, cx
 
 
@@ -245,12 +279,75 @@ def run_codex(req: str, home: Path, cx: Path, timeout: int = 240) -> dict:
                     started = m.group(1)
                 if d.get("type") in ("error", "turn.failed"):
                     err = str(d)[:200]
+                if not started and time.time() - t0 > timeout:
+                    err = "timeout"
                 if started or d.get("type") in ("turn.completed", "turn.failed") or time.time() - t0 > timeout:
                     break
         finally:
             os.killpg(p.pid, signal.SIGTERM)
             p.wait()
         return {"started": started or "none", "seconds": round(time.time() - t0, 1), **({"error": err} if err else {})}
+
+
+# ---- before/after: the same requests with two versions of the skill descriptions ----
+
+def skills_at(rev: str, dest: Path) -> Path:
+    """The repository's skills/ folder as it was at git revision REV."""
+    dest.mkdir(parents=True)
+    tar = subprocess.run(["git", "-C", str(REPO), "archive", rev, "skills"], capture_output=True, check=True).stdout
+    subprocess.run(["tar", "-x", "-C", str(dest)], input=tar, check=True)
+    return dest / "skills"
+
+
+def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, model: str, workers: int = 4) -> None:
+    """Each request runs once per condition in every block i (order drawn with Random(i)).
+
+    Claude Code reads the installed copies in $CLAUDE_CONFIG_DIR/skills, so the SKILL.md
+    files that differ are swapped for each block and put back after. Codex gets one
+    scratch home per condition and worker.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    done = set()
+    if out.exists():
+        done = {(r["session"], r["run"], r["condition"]) for r in map(json.loads, out.read_text().splitlines())
+                if "error" not in r}
+    with tempfile.TemporaryDirectory(prefix="agent-kit-ab-") as base:
+        trees = {"before": skills_at(before, Path(base) / "before"), "after": REPO / "skills"}
+        swap = [n for n in MINE if (trees["before"] / n / "SKILL.md").read_bytes() != (REPO / "skills" / n / "SKILL.md").read_bytes()]
+        live = {n: claude_dir() / "skills" / n / "SKILL.md" for n in swap} if agent == "claude" else {}
+        saved = {n: f.read_bytes() for n, f in live.items()}
+        if live:  # put the files back on `kill` too
+            signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
+        homes = {}
+        if agent == "codex":
+            for cond, tree in trees.items():
+                for w in range(workers):
+                    homes[cond, w] = codex_home(Path(base) / f"{cond}-{w}", tree)
+        try:
+            for i in range(runs):
+                order = ["before", "after"]
+                random.Random(i).shuffle(order)
+                for cond in order:
+                    todo = [c for c in cases if (c["session"], i, cond) not in done]
+                    if not todo:
+                        continue
+                    if agent == "claude":
+                        for n, f in live.items():
+                            f.write_bytes((trees[cond] / n / "SKILL.md").read_bytes())
+                        go = lambda c, w: run_claude(c["request"], model)
+                        w_n = workers
+                    else:
+                        go = lambda c, w: run_codex(c["request"], *homes[cond, w])
+                        w_n = workers
+                    with ThreadPoolExecutor(w_n) as ex:
+                        res = list(ex.map(lambda cw: go(*cw), [(c, k % w_n) for k, c in enumerate(todo)]))
+                    with out.open("a") as fh:
+                        for c, r in zip(todo, res):
+                            fh.write(json.dumps({**c, "agent": agent, "run": i, "condition": cond, **r}, ensure_ascii=False) + "\n")
+                    say(f"run {i} {cond}: " + ", ".join(r["started"] for r in res))
+        finally:
+            for n, f in live.items():
+                f.write_bytes(saved[n])
 
 
 def cmd_replay(args: list[str]) -> int:
@@ -267,6 +364,11 @@ def cmd_replay(args: list[str]) -> int:
         return cmd_report()
     agent = args[args.index("--agent") + 1]
     model = args[args.index("--model") + 1] if "--model" in args else "claude-opus-5-5"
+    if "--before" in args:  # replay --agent A --before REV --cases FILE --runs N
+        cases = [json.loads(l) for l in Path(args[args.index("--cases") + 1]).read_text().splitlines()]
+        run_ab(agent, cases, args[args.index("--before") + 1], int(args[args.index("--runs") + 1]),
+               OUT / f"ab-{agent}.jsonl", model)
+        return 0
     cases = [json.loads(l) for l in (OUT / "cases.jsonl").read_text().splitlines()]
     out = OUT / f"{agent}.jsonl"
     done = {json.loads(l)["session"] for l in out.read_text().splitlines()} if out.exists() else set()
@@ -289,36 +391,111 @@ def cmd_replay(args: list[str]) -> int:
     return 0
 
 
-def names_skill(c: dict) -> bool:
-    """The request itself names the skill (a /name or $name the user typed)."""
-    return c["label"] in MINE and re.search(r"[/$]" + re.escape(c["label"]) + r"\b", c["request"]) is not None
+# ---- report: right or wrong by what happened next in the original session ----------
+
+MARKS = OUT / "marks" / "marks.jsonl"
+
+
+def answers() -> dict[str, str]:
+    """Session -> the skill the request should start, from marks.jsonl (see marks/RULE.md).
+    `none` means no skill; `not:X` means anything but X. Unclear cases have no answer."""
+    out = {}
+    if MARKS.exists():
+        for m in map(json.loads, MARKS.read_text().splitlines()):
+            if m.get("outcome") in ("kept", "corrected") and m.get("answer"):
+                out[m["session"]] = m["answer"]
+    return out
+
+
+def right(started: str, answer: str) -> bool:
+    return started != answer[4:] if answer.startswith("not:") else started == answer
+
+
+def wilson(k: int, n: int) -> str:
+    """95% range for a share k/n (Wilson score interval)."""
+    if n == 0:
+        return "-"
+    z, ph = 1.959964, k / n
+    c = (ph + z * z / (2 * n)) / (1 + z * z / n)
+    h = z / (1 + z * z / n) * (ph * (1 - ph) / n + z * z / (4 * n * n)) ** 0.5
+    return f"{k}/{n} [{max(0, c - h):.2f}, {min(1, c + h):.2f}]"
+
+
+def mcnemar(b: int, c: int) -> float:
+    """Exact two-sided McNemar test: b pairs right only after, c right only before."""
+    from math import comb
+    n = b + c
+    return 1.0 if n == 0 else min(1.0, 2 * sum(comb(n, i) for i in range(min(b, c) + 1)) / 2 ** n)
+
+
+def sign_flip(diffs: list[float]) -> float:
+    """Two-sided sign-flip test of the mean of paired differences (all 2^n sign choices)."""
+    import itertools
+    obs = abs(sum(diffs))
+    if not diffs:
+        return 1.0
+    hits = sum(abs(sum(d * s for d, s in zip(diffs, signs))) >= obs - 1e-12
+               for signs in itertools.product((1, -1), repeat=len(diffs)))
+    return hits / 2 ** len(diffs)
+
+
+def report_ab(ans: dict[str, str]) -> None:
+    for agent in ("claude", "codex"):
+        f = OUT / f"ab-{agent}.jsonl"
+        if not f.exists():
+            continue
+        rows = [r for r in map(json.loads, f.read_text().splitlines()) if "error" not in r]
+        by: dict[str, dict] = {}
+        for r in rows:
+            by.setdefault(r["session"], {"req": r["request"], "how": r.get("how", ""), "before": {}, "after": {}})
+            by[r["session"]][r["condition"]][r["run"]] = r["started"]
+        say(f"\n{agent}: before = 54ae930, after = 62c5fcb; skills started per request")
+        b = c = 0
+        diffs = []
+        for sid, d in by.items():
+            a = ans.get(sid)
+            cnt = lambda cond: ", ".join(f"{k} {v}" for k, v in Counter(d[cond].values()).most_common())
+            line = f"  {d['req'][:60]!r} ({d['how']}) answer {a or 'unmarked'}"
+            say(line)
+            for cond in ("before", "after"):
+                k = sum(right(x, a) for x in d[cond].values()) if a else None
+                say(f"      {cond:6} {cnt(cond):70} " + (f"right {wilson(k, len(d[cond]))}" if a else ""))
+            if a:
+                runs = d["before"].keys() & d["after"].keys()
+                b += sum(right(d["after"][i], a) and not right(d["before"][i], a) for i in runs)
+                c += sum(right(d["before"][i], a) and not right(d["after"][i], a) for i in runs)
+                diffs.append(sum(right(d["after"][i], a) for i in runs) / len(runs)
+                             - sum(right(d["before"][i], a) for i in runs) / len(runs))
+        say(f"  paired runs where only 'after' was right: {b}; only 'before': {c}; exact McNemar p = {mcnemar(b, c):.4f}")
+        say(f"  sign-flip test over {len(diffs)} marked requests: p = {sign_flip(diffs):.4f} "
+            f"(smallest possible {2 / 2 ** len(diffs):.4f})")
+        for sid, d in by.items():
+            if "1512.06410" in d["req"] and ans.get(sid):
+                a, runs = ans[sid], d["before"].keys() & d["after"].keys()
+                b1 = sum(right(d["after"][i], a) and not right(d["before"][i], a) for i in runs)
+                c1 = sum(right(d["before"][i], a) and not right(d["after"][i], a) for i in runs)
+                say(f"  the request the change was made for: only after {b1}, only before {c1}, p = {mcnemar(b1, c1):.4f}")
 
 
 def cmd_report() -> int:
-    rows = {}
+    ans = answers()
+    say(f"marks: {len(ans)} requests have an answer ({MARKS})")
     for a in ("claude", "codex"):
-        if (OUT / f"{a}.jsonl").exists():
-            rows[a] = {}
-            for r in map(json.loads, (OUT / f"{a}.jsonl").read_text().splitlines()):
-                rows[a].setdefault(r["session"], r)  # the first run of a request counts
-    for a, rs in rows.items():
-        mine = [r for r in rs.values() if r["label"] in MINE]
-        words = [r for r in mine if not names_skill(r)]
-        neg = [r for r in rs.values() if r["label"] not in MINE]
-        hit = lambda xs: sum(r["started"] == r["label"] for r in xs)
-        say(f"\n{a}: {len(rs)} requests replayed")
-        say(f"  past start of a repository skill: {len(mine)}; same skill now {hit(mine)}, "
-            f"another skill {sum(r['started'] not in ('none', r['label']) for r in mine)}, none {sum(r['started'] == 'none' for r in mine)}")
-        say(f"    of them, the request does not name the skill: {len(words)}; same skill now {hit(words)}")
-        say(f"  past start of no repository skill: {len(neg)}; a repository skill starts now "
-            f"{sum(r['started'] in MINE for r in neg)}, another skill {sum(r['started'] not in MINE and r['started'] != 'none' for r in neg)}")
-        for r in rs.values():
-            if r["started"] != r["label"] and (r["started"] in MINE or r["label"] in MINE):
-                say(f"    {r['label']:28} -> {r['started']:28} {r['request'][:70]!r}")
-    if len(rows) == 2:
-        both = rows["claude"].keys() & rows["codex"].keys()
-        diff = [s for s in both if rows["claude"][s]["started"] != rows["codex"][s]["started"]]
-        say(f"\nthe two agents start a different skill on {len(diff)} of {len(both)} requests:")
-        for s in diff:
-            say(f"    claude {rows['claude'][s]['started']:28} codex {rows['codex'][s]['started']:28} {rows['claude'][s]['request'][:60]!r}")
+        f = OUT / f"{a}.jsonl"
+        if not f.exists():
+            continue
+        rs: dict[str, dict] = {}
+        for r in map(json.loads, f.read_text().splitlines()):
+            if "error" not in r:
+                rs.setdefault(r["session"], r)
+        scored = [r for r in rs.values() if r["session"] in ans]
+        k = sum(right(r["started"], ans[r["session"]]) for r in scored)
+        same = sum(r["started"] == r["label"] for r in scored)
+        say(f"\n{a}: {len(rs)} requests replayed, {len(scored)} with an answer")
+        say(f"  right by what happened next: {wilson(k, len(scored))}")
+        say(f"  same skill as the original session (the old pass rule): {same}/{len(scored)}")
+        for r in scored:
+            if not right(r["started"], ans[r["session"]]):
+                say(f"    started {r['started']:28} answer {ans[r['session']]:28} {r['request'][:60]!r}")
+    report_ab(ans)
     return 0
