@@ -33,8 +33,10 @@ expect 0 "clean install and verify" kit install
 grep -q '"theme": "dark"' "$CLAUDE_CONFIG_DIR/settings.json" && grep -q '"model": "x"' "$CLAUDE_CONFIG_DIR/settings.json" \
   && echo "ok   settings.json keeps the app's keys" || { echo "BAD  settings merge"; fail=1; }
 python3 -c 'import json, sys; p = json.load(open(sys.argv[1]))["permissions"]
-sys.exit(not (p["allow"] == ["Bash(ls:*)"] and p["deny"] == ["Read(**/.env)"] and p["defaultMode"] == "auto"))' \
-  "$CLAUDE_CONFIG_DIR/settings.json" && echo "ok   settings.json keeps the user's permission lists" \
+sys.exit(not (p["allow"] == ["Bash(ls:*)"] and p["defaultMode"] == "auto"
+  and p["deny"] == ["Read(**/.env)", "Read(~/.ssh/**)", "Read(**/secrets/**)"]
+  and p["ask"] == ["Bash(ssh:*)", "Bash(sudo:*)", "Bash(make deploy:*)", "Bash(darwin-rebuild switch:*)"]))' \
+  "$CLAUDE_CONFIG_DIR/settings.json" && echo "ok   settings.json keeps the user's permission lists and adds the shared rules once" \
   || { echo "BAD  permission lists"; fail=1; }
 grep -q '^notify = \["a"\]' "$CODEX_HOME/config.toml" && grep -q '^model = "gpt' "$CODEX_HOME/config.toml" \
   && echo "ok   config.toml keeps Codex's lines" || { echo "BAD  config merge"; fail=1; }
