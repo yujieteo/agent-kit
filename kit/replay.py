@@ -56,7 +56,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from .common import REPO, cache_dir, claude_dir, codex_dir, mcnemar, repo_skills, say, wilson
+from .common import REPO, cache_dir, claude_dir, codex_dir, copy_sqlite, mcnemar, repo_skills, say, wilson
 
 OUT = REPO / "results" / "replay"
 MINE = set(repo_skills())
@@ -144,10 +144,7 @@ def codex_cases():
     # Threads that live only in the thread store.
     src = codex_dir() / "thread_history_1.sqlite"
     with tempfile.TemporaryDirectory() as t:
-        for s in ("", "-wal", "-shm"):
-            if Path(str(src) + s).exists():
-                shutil.copy2(str(src) + s, Path(t) / (src.name + s))
-        db = sqlite3.connect(Path(t) / src.name)
+        db = sqlite3.connect(copy_sqlite(src, Path(t)))
         threads: dict[str, dict] = {}
         for tid, typ, js in db.execute("select thread_id, item_type, item_json from thread_items "
                                        "where item_type in ('userMessage','commandExecution') order by thread_id, rollout_ordinal"):
