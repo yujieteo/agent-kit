@@ -236,7 +236,8 @@ the records).
 
 Run every check with one command: `bash tests/check.sh`. It builds the
 flake's apm and skill-reach, runs each test script below and shellcheck, and
-exits 0 only when all of them pass. It does not touch the live home.
+exits 0 only when all of them pass. It does not touch the live agent folders
+(`~/.config/claude`, `~/.agents`, `~/.codex`).
 
 After any edit under `skills/` or `.apm/`, run `python3 -m kit lock`, then
 `python3 -m kit lock --check`. The first command rewrites hashes.json; the
