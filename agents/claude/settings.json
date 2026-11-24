@@ -1,6 +1,10 @@
 {
   "cleanupPeriodDays": 36500,
-  "permissions": { "defaultMode": "auto" },
+  "permissions": {
+    "defaultMode": "auto",
+    "deny": ["Read(~/.ssh/**)", "Read(**/.env)", "Read(**/secrets/**)"],
+    "ask": ["Bash(ssh:*)", "Bash(sudo:*)", "Bash(make deploy:*)", "Bash(darwin-rebuild switch:*)"]
+  },
   "advisorModel": "fable",
   "theme": "dark",
   "inputNeededNotifEnabled": true,
