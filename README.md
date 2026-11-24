@@ -43,6 +43,10 @@ shows the installed copies are the ones in hashes.json.
 | Claude Code settings | `agents/claude/settings.json` (declared keys) | merged into `$CLAUDE_CONFIG_DIR/settings.json` |
 | Codex settings | `agents/codex/config.toml` (declared keys) | merged into `$CODEX_HOME/config.toml` |
 
+The Claude Code merge sets each declared key and keeps every other key. A
+list, such as `permissions.deny`, keeps the user's own items and gets each
+declared item it lacks. `verify` accepts extra items in a list.
+
 `inventory.tsv` sorts every top-level entry of both config folders into
 four kinds: written by the user (here), memory (backup), session logs
 (backup), and owned by the app (left alone). Memory and logs go to restic
