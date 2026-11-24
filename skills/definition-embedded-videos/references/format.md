@@ -112,4 +112,4 @@ Where the script puts a definition by default:
 build.py WORK [--only GLOB] [--lint [--formulas] [--narration]] [--engine phonon|say] [--voice NAME] [--motion full|steps|none] [--jobs N]
 ```
 
-`--lint --narration` writes `NAME.narration.txt`: what the voice says, one beat per paragraph, each with its line number in the beats file. Read it in place of the Python snippet in SKILL.md.
+`--lint --narration` writes `NAME.narration.txt`: what the voice says, one beat per paragraph, each with its line number in the beats file. It is the text that "Check" in SKILL.md asks you to read.

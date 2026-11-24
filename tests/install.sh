@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# tests/install.sh: install into a copy of today's agent folders in a scratch
-# home, verify, then plant three faults. Each must turn verify (or lock
+# tests/install.sh: install into made-up agent folders in a scratch home,
+# verify, then plant four faults. Each must turn verify (or lock
 # --check) red. Exit 0 only when the clean run passes and every fault fails.
 set -u
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -9,7 +9,8 @@ trap 'chmod -R u+w "$t"; rm -rf "$t"' EXIT
 export HOME=$t/home CLAUDE_CONFIG_DIR=$t/home/.config/claude CODEX_HOME=$t/home/.config/codex
 export APM_HOME=$t/home/.local/share/apm XDG_CACHE_HOME=$t/home/.cache
 mkdir -p "$CLAUDE_CONFIG_DIR" "$CODEX_HOME"
-# Today's state: a hand CLAUDE.md, an empty AGENTS.md, Codex settings of its own.
+# A hand-written CLAUDE.md (the live one went to the Trash on 2026-11-22; the install
+# must still leave such a file alone), an empty AGENTS.md, Codex settings of its own.
 printf 'hand-written\n' > "$CLAUDE_CONFIG_DIR/CLAUDE.md"
 printf '{"theme": "light", "model": "x", "permissions": {"allow": ["Bash(ls:*)"], "deny": ["Read(**/.env)"]}}\n' \
   > "$CLAUDE_CONFIG_DIR/settings.json"

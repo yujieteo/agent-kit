@@ -64,7 +64,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from .common import HOME, cache_dir, claude_dir, codex_dir, copy_sqlite, say, wilson
+from .common import HOME, cache_dir, claude_dir, codex_dir, copy_sqlite, not_a_request, say, wilson
 
 CACHE = cache_dir()
 DB = CACHE / "sessions.db"
@@ -318,8 +318,7 @@ def claude_events(f: Path):
                 if b.get("type") == "tool_result":
                     r = b.get("content")
                     ev.append((ts, "result", (r if isinstance(r, str) else json.dumps(r))[:20000]))
-                elif b.get("type") == "text" and b.get("text", "").strip() and not b["text"].startswith(
-                        ("<local-command", "Caveat:", "<task-notification>", "<system-reminder>", "[Request interrupted")):
+                elif b.get("type") == "text" and b.get("text", "").strip() and not not_a_request(b["text"]):
                     ev.append((ts, "user", b["text"]))
         elif d.get("type") == "assistant":
             for b in c or []:

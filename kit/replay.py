@@ -56,13 +56,12 @@ import tempfile
 import time
 from pathlib import Path
 
-from .common import REPO, cache_dir, claude_dir, codex_dir, copy_sqlite, mcnemar, repo_skills, say, wilson
+from .common import (REPO, cache_dir, claude_dir, codex_dir, copy_sqlite, mcnemar, not_a_request, repo_skills,
+                     say, wilson)
 
 OUT = REPO / "results" / "replay"
 MINE = set(repo_skills())
 SKILL_MD = re.compile(r"skills/([\w.:-]+)/SKILL\.md")
-NOT_REQUESTS = ("<local-command", "<command-name>/compact", "<command-name>/clear", "Caveat:",
-                "[Request interrupted", "<task-notification>", "<system-reminder>", "Continue")
 
 
 # ---- cases ----------------------------------------------------------------------
@@ -80,7 +79,7 @@ def claude_cases(exclude: set[str]):
             msg = d.get("message") or {}
             if d.get("type") == "user" and not d.get("isMeta") and request is not None and label is None:
                 c = msg.get("content")
-                if isinstance(c, str) and c.strip() and not c.startswith(NOT_REQUESTS):
+                if isinstance(c, str) and c.strip() and not not_a_request(c):
                     break  # the next request: the first one started no skill
             if d.get("type") == "user" and not d.get("isMeta") and request is None:
                 c = msg.get("content")
@@ -97,7 +96,7 @@ def claude_cases(exclude: set[str]):
                         continue
                     request, label = args.group(1).strip(), m.group(1)
                     continue
-                if c.startswith(NOT_REQUESTS):
+                if not_a_request(c):
                     continue
                 request = c.strip()
             if d.get("type") == "assistant" and request is not None and label is None:
@@ -189,36 +188,34 @@ def run_claude(req: str, model: str, timeout: int = 180) -> dict:
     CLAUDE_CWD.mkdir(parents=True, exist_ok=True)
     if any(CLAUDE_CWD.iterdir()):
         raise SystemExit(f"agent-kit: {CLAUDE_CWD} must be empty")
-    if True:
-        wd = str(CLAUDE_CWD)
-        cmd = ["claude", "-p", req, "--output-format", "stream-json", "--verbose", "--tools", "Skill",
-               "--no-session-persistence", "--max-turns", "2", "--model", model]
-        p = subprocess.Popen(cmd, cwd=wd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-                             start_new_session=True)
-        started, listed, t0, result = None, None, time.time(), None
-        try:
-            for line in p.stdout:
-                try:
-                    d = json.loads(line)
-                except ValueError:
-                    continue
-                if d.get("type") == "system" and d.get("subtype") == "init":
-                    listed = len(d.get("skills") or [])
-                for b in (d.get("message") or {}).get("content") or []:
-                    if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Skill":
-                        started = (b.get("input") or {}).get("skill")
-                        break
-                if d.get("type") == "result":
-                    result = d
-                if started or d.get("type") == "result" or time.time() - t0 > timeout:
+    cmd = ["claude", "-p", req, "--output-format", "stream-json", "--verbose", "--tools", "Skill",
+           "--no-session-persistence", "--max-turns", "2", "--model", model]
+    p = subprocess.Popen(cmd, cwd=CLAUDE_CWD, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                         start_new_session=True)
+    started, listed, t0, result = None, None, time.time(), None
+    try:
+        for line in p.stdout:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if d.get("type") == "system" and d.get("subtype") == "init":
+                listed = len(d.get("skills") or [])
+            for b in (d.get("message") or {}).get("content") or []:
+                if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Skill":
+                    started = (b.get("input") or {}).get("skill")
                     break
-        finally:
-            os.killpg(p.pid, signal.SIGTERM)
-            p.wait()
-        out = {"started": started or "none", "skills_listed": listed, "seconds": round(time.time() - t0, 1)}
-        if not started and (result is None or result.get("is_error")):
-            out["error"] = "no result" if result is None else str(result.get("result") or result.get("subtype"))[:200]
-        return out
+            if d.get("type") == "result":
+                result = d
+            if started or d.get("type") == "result" or time.time() - t0 > timeout:
+                break
+    finally:
+        os.killpg(p.pid, signal.SIGTERM)
+        p.wait()
+    out = {"started": started or "none", "skills_listed": listed, "seconds": round(time.time() - t0, 1)}
+    if not started and (result is None or result.get("is_error")):
+        out["error"] = "no result" if result is None else str(result.get("result") or result.get("subtype"))[:200]
+    return out
 
 
 # A replay must not act. A request that starts no skill runs on, and these plugins can
@@ -296,6 +293,22 @@ def skills_at(rev: str, dest: Path) -> Path:
     return dest / "skills"
 
 
+def git_rev(rev: str) -> str:
+    """REV as a short commit name; stops with a message when git cannot resolve it."""
+    r = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--short", rev + "^{commit}"], capture_output=True, text=True)
+    if r.returncode:
+        raise SystemExit(f"agent-kit replay: git cannot resolve {rev!r} in {REPO}: {r.stderr.strip()}")
+    return r.stdout.strip()
+
+
+def ab_revisions(before: str) -> dict[str, str]:
+    """The two versions of the skills that a before/after run compares, as stored in each row.
+    "after" is the working tree's skills/: HEAD, with "+edits" when skills/ differs from HEAD."""
+    dirty = subprocess.run(["git", "-C", str(REPO), "status", "--porcelain", "--", "skills"],
+                           capture_output=True, text=True, check=True).stdout.strip()
+    return {"before_rev": git_rev(before), "after_rev": git_rev("HEAD") + ("+edits" if dirty else "")}
+
+
 def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, model: str, workers: int = 4) -> None:
     """Each request runs once per condition in every block i (order drawn with Random(i)).
 
@@ -304,6 +317,7 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
     scratch home per condition and worker.
     """
     from concurrent.futures import ThreadPoolExecutor
+    revs = ab_revisions(before)
     done = set()
     if out.exists():
         done = {(r["session"], r["run"], r["condition"]) for r in map(json.loads, out.read_text().splitlines())
@@ -331,16 +345,17 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
                     if agent == "claude":
                         for n, f in live.items():
                             f.write_bytes((trees[cond] / n / "SKILL.md").read_bytes())
-                        go = lambda c, w: run_claude(c["request"], model)
-                        w_n = workers
-                    else:
-                        go = lambda c, w: run_codex(c["request"], *homes[cond, w])
-                        w_n = workers
-                    with ThreadPoolExecutor(w_n) as ex:
-                        res = list(ex.map(lambda cw: go(*cw), [(c, k % w_n) for k, c in enumerate(todo)]))
+
+                    def go(c, w, cond=cond):  # w: the worker, which owns one Codex home per condition
+                        if agent == "claude":
+                            return run_claude(c["request"], model)
+                        return run_codex(c["request"], *homes[cond, w])
+                    with ThreadPoolExecutor(workers) as ex:
+                        res = list(ex.map(lambda cw: go(*cw), [(c, k % workers) for k, c in enumerate(todo)]))
                     with out.open("a") as fh:
                         for c, r in zip(todo, res):
-                            fh.write(json.dumps({**c, "agent": agent, "run": i, "condition": cond, **r}, ensure_ascii=False) + "\n")
+                            fh.write(json.dumps({**c, "agent": agent, "run": i, "condition": cond, **revs, **r},
+                                                ensure_ascii=False) + "\n")
                     say(f"run {i} {cond}: " + ", ".join(r["started"] for r in res))
         finally:
             for n, f in live.items():
@@ -354,7 +369,6 @@ def cmd_replay(args: list[str]) -> int:
         n = int(args[args.index("--negatives") + 1]) if "--negatives" in args else 20
         cases = build_cases(exclude, n)
         (OUT / "cases.jsonl").write_text("".join(json.dumps(c, ensure_ascii=False) + "\n" for c in cases))
-        from collections import Counter
         say(f"{len(cases)} cases: " + ", ".join(f"{k} {v}" for k, v in Counter(c['label'] for c in cases).most_common()))
         return 0
     if args[:1] == ["report"]:
@@ -437,7 +451,8 @@ def report_ab(ans: dict[str, str]) -> None:
         for r in rows:
             by.setdefault(r["session"], {"req": r["request"], "how": r.get("how", ""), "before": {}, "after": {}})
             by[r["session"]][r["condition"]][r["run"]] = r["started"]
-        say(f"\n{agent}: before = 54ae930, after = 62c5fcb; skills started per request")
+        pairs = sorted({(r.get("before_rev", "not recorded"), r.get("after_rev", "not recorded")) for r in rows})
+        say(f"\n{agent}: " + "; ".join(f"before = {b}, after = {a}" for b, a in pairs) + "; skills started per request")
         b = c = 0
         diffs = []
         for sid, d in by.items():

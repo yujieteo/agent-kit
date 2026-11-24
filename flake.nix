@@ -87,8 +87,23 @@
             runtimeInputs = [ pkgs.python3 apm skill-reach pkgs.git pkgs.gh ];
             text = ''
               export AGENT_KIT_APM=${apm}/bin/apm AGENT_KIT_REACH=${skill-reach}/bin/reach APM_NON_INTERACTIVE=1
-              # apm 0.37.0 fails on a read-only source folder ("open() missing
-              # required argument 'flags'", measured), so it gets a copy.
+              # AGENT_KIT_REPO=/path/to/clone runs the kit of that clone, in place:
+              # lock writes its hashes.json, and replay and search-proof find
+              # its git history and results/.
+              r=''${AGENT_KIT_REPO:-}
+              if [ -n "$r" ]; then
+                if [ ! -f "$r/kit/__main__.py" ]; then
+                  echo "agent-kit: AGENT_KIT_REPO=$r is not a clone of agent-kit (no kit/__main__.py)" >&2
+                  exit 2
+                fi
+                PYTHONPATH=$(cd "$r" && pwd) exec python3 -m kit "$@"
+              fi
+              # Otherwise it runs from a copy of the flake's source, deleted on
+              # exit: apm 0.37.0 fails on a read-only source folder ("open()
+              # missing required argument 'flags'", measured). The copy has no
+              # .git, tests or results/, so kit/__main__.py refuses the commands
+              # that need them (lock without --check, replay, search-proof).
+              export AGENT_KIT_COPY=1
               w=$(mktemp -d "''${TMPDIR:-/tmp}/agent-kit.XXXXXX")
               trap 'chmod -R u+w "$w"; rm -rf "$w"' EXIT
               cp -R ${src} "$w/kit-src"

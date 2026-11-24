@@ -114,7 +114,6 @@ def number(body, pre, first_section=1):
             level = ["section", "subsection", "subsubsection"].index(m.group(1))
             if m.group(2):
                 out.append(f"\\{m.group(1)}\u27e6\u27e7")
-                stack_ctx = None
             else:
                 sec[level] += 1
                 for k in range(level + 1, 3):
@@ -413,7 +412,8 @@ def from_tex(path, source, first_section=1):
     return lines, unknown, len(math)
 
 
-def from_text(path, source, first_section=1):
+def from_text(path, source):
+    """A .md or .txt transcription: its headings are kept as written, with no section numbers."""
     lines, math = [], 0
     text = path.read_text(encoding="utf-8", errors="replace")
     for chunk in re.split(r"\n\s*\n", text):
@@ -445,12 +445,20 @@ def main():
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--source", default="", help="the @source line, e.g. arXiv:1809.09936v1")
     ap.add_argument("--force", action="store_true", help="overwrite an existing .beats file")
-    ap.add_argument("--first-section", type=int, default=1,
-                    help="number of the first \\section (0 when the printed version leaves the introduction unnumbered)")
+    ap.add_argument("--first-section", type=int,
+                    help="LaTeX only: number of the first \\section (default 1; 0 when the printed version leaves "
+                         "the introduction unnumbered)")
     a = ap.parse_args()
+    tex = a.src.suffix == ".tex"
+    if a.first_section is not None and not tex:
+        ap.error("--first-section works only for a .tex source: a .md or .txt source keeps its headings "
+                 "as written and numbers no sections")
     if a.out.exists() and not a.force:
         sys.exit(f"{a.out} exists. It may hold hand edits. Use --force to overwrite.")
-    lines, unknown, nmath = (from_tex if a.src.suffix == ".tex" else from_text)(a.src, a.source, a.first_section)
+    if tex:
+        lines, unknown, nmath = from_tex(a.src, a.source, 1 if a.first_section is None else a.first_section)
+    else:
+        lines, unknown, nmath = from_text(a.src, a.source)
     out, blank = [], False
     for l in lines:                              # one blank line between paragraphs, none doubled
         if l == "":

@@ -27,6 +27,13 @@ tested. The flake builds `agent-kit`, `apm` and `skill-reach` (the overlap
 check); three Python packages that nixpkgs lacks come from PyPI wheels,
 pinned by hash.
 
+Under `nix run`, agent-kit runs from a copy of the flake's source, which has
+no `.git`, tests or `results/` and is deleted on exit. So `lock` (without
+`--check`), `replay` and `search-proof` stop there with a message. Set
+`AGENT_KIT_REPO` to a clone to run the kit of that clone in place, for
+example `AGENT_KIT_REPO=~/src/agent-kit nix run github:yujieteo/agent-kit -- lock`,
+or run `python3 -m kit` in the clone.
+
 If a skill folder was already there before the first install, apm takes it
 over without a record that it wrote the files, and a later install refuses
 to replace them (measured). Run `agent-kit install --force` once in that case.
@@ -65,7 +72,8 @@ only Codex's own `sandbox_mode` key is in `agents/codex/config.toml`.
   sessions read `$CODEX_HOME/skills/atomic-math-workbooks`). `apm compile -g` never writes Codex's AGENTS.md (read in
   the source: global discovery scans only `apm_modules/`), so agent-kit
   writes it, and hashes it itself. apm fails on a read-only source folder
-  (measured), so the Nix wrapper gives it a copy.
+  (measured), so the Nix wrapper gives it a copy, unless `AGENT_KIT_REPO`
+  names a clone.
 - **google/skill-reach** measures overlap (`reach overlap --semantic`). Its
   replay (`reach eval`) cannot be used here. It has no Codex runtime. With
   config isolation on, Claude Code is not signed in. With isolation off, the
@@ -127,14 +135,17 @@ is not given for mean reciprocal rank.
 
 | Method | Found in the top 5 | Mean reciprocal rank | Places of the 4 answers |
 |---|---|---|---|
-| `agent-kit search`, the rule chosen on the older cases (sum of each session's best 3 rows) | 3 of 4 [0.30, 0.95] | 0.57 | 1, 14, 5, 1 |
-| `agent-kit search` as it ships (two rankings merged) | 3 of 4 [0.30, 0.95] | 0.62 | 1, 3, 7, 1 |
-| one ranked query | 3 of 4 [0.30, 0.95] | 0.62 | 1, 3, 7, 1 |
+| the rule chosen on the older cases (sum of each session's best 3 rows) | 3 of 4 [0.30, 0.95] | 0.57 | 1, 14, 5, 1 |
+| the old proof's rule (two rankings merged) | 3 of 4 [0.30, 0.95] | 0.62 | 1, 3, 7, 1 |
+| one ranked query (`agent-kit search` as it ships) | 3 of 4 [0.30, 0.95] | 0.62 | 1, 3, 7, 1 |
 | ripgrep over the raw log files | 0 of 4 [0, 0.49] | 0.07 | 112, 7, 15, 13 |
 | pi-session-search (commit 5a36613) | 1 of 4 [0.05, 0.70] | 0.25 | missing, 1, missing, missing |
 
-The chosen rule won on the older cases only by places 52 against 63, which
-is chance. On the newer cases it is a little worse than the shipped rule. So
+`agent-kit search` ranks with one query: a session's score is the score of
+its best row (`rank` in `kit/search.py`). The merged rule runs only in
+`search-proof`; on these 4 cases it put the answers in the same places. The
+chosen rule won on the older cases only by places 52 against 63, which is
+chance. On the newer cases it is a little worse than the shipped rule. So
 the shipped rule stays. With 4 cases, the ranges of all methods overlap, so
 this test cannot show that one method is better than another. The FTS5 rules
 put 3 of 4 answers in the top 5, ripgrep 0 and pi-session-search 1. On the
@@ -241,7 +252,7 @@ the records).
 Run every check with one command: `bash tests/check.sh`. It builds the
 flake's apm and skill-reach, runs each test script below and shellcheck, and
 exits 0 only when all of them pass. It does not touch the live agent folders
-(`~/.config/claude`, `~/.agents`, `~/.codex`).
+(`~/.config/claude`, `~/.agents`, `~/.config/codex`).
 
 After any edit under `skills/` or `.apm/`, run `python3 -m kit lock`, then
 `python3 -m kit lock --check`. The first command rewrites hashes.json; the
@@ -265,6 +276,10 @@ apm and skill-reach: set `AGENT_KIT_APM` to `bin/apm` in the output of
 the output of `.#skill-reach`.
 
 `tests/stats.py` checks the 95% ranges given above for 4 cases.
+`tests/settings.py` checks the Claude Code settings merge: a list such as
+`permissions.deny` keeps the user's own items and gets each declared item it
+lacks, once, and `verify` accepts extra items in a list but not a missing
+declared one.
 `tests/video.sh` runs the video skill's `prepare.py` and `build.py --lint`
 on a tiny Markdown sample in a scratch folder, with no voice. A formula that
 the build cannot say must fail the lint.
