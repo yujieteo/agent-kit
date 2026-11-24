@@ -64,9 +64,9 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from .common import HOME, claude_dir, codex_dir, copy_sqlite, say, wilson
+from .common import HOME, cache_dir, claude_dir, codex_dir, copy_sqlite, say, wilson
 
-CACHE = Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "agent-kit"
+CACHE = cache_dir()
 DB = CACHE / "sessions.db"
 TOPK = 5
 STOP = set("""a about above after again against all am an and any are as at be because been before

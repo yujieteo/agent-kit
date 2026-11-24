@@ -56,10 +56,10 @@ import tempfile
 import time
 from pathlib import Path
 
-from .common import REPO, HOME, claude_dir, codex_dir, mcnemar, say, wilson
+from .common import REPO, cache_dir, claude_dir, codex_dir, mcnemar, repo_skills, say, wilson
 
 OUT = REPO / "results" / "replay"
-MINE = {p.name for p in (REPO / "skills").iterdir() if p.is_dir()}
+MINE = set(repo_skills())
 SKILL_MD = re.compile(r"skills/([\w.:-]+)/SKILL\.md")
 NOT_REQUESTS = ("<local-command", "<command-name>/compact", "<command-name>/clear", "Caveat:",
                 "[Request interrupted", "<task-notification>", "<system-reminder>", "Continue")
@@ -185,7 +185,7 @@ def build_cases(exclude: set[str], negatives: int) -> list[dict]:
 
 # One fixed, empty working folder: Claude Code makes an (empty) projects/<folder>/memory
 # for each new working folder, even with --no-session-persistence (measured).
-CLAUDE_CWD = Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "agent-kit" / "replay-cwd"
+CLAUDE_CWD = cache_dir() / "replay-cwd"
 
 
 def run_claude(req: str, model: str, timeout: int = 180) -> dict:

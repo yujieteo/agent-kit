@@ -15,22 +15,18 @@ installed for Claude Code and Codex (plugin and app skills), as a report.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
-from .common import REPO, HOME, claude_dir, codex_dir, say
+from .common import REPO, HOME, claude_dir, codex_dir, find_tool, repo_skills, say
 
 RATIO, SIMILARITY = 0.5, 0.75
 
 
 def reach() -> str:
-    exe = os.environ.get("AGENT_KIT_REACH") or shutil.which("reach")
-    if not exe:
-        raise SystemExit("agent-kit: reach (skill-reach) is not on PATH (set AGENT_KIT_REACH)")
-    return exe
+    return find_tool("reach", "AGENT_KIT_REACH", "reach (skill-reach)")
 
 
 def run_overlap(corpus: Path) -> list[dict]:
@@ -72,7 +68,7 @@ def cmd_overlap(args: list[str]) -> int:
     if "--installed" in args:
         with tempfile.TemporaryDirectory(prefix="agent-kit-overlap-") as t:
             n = installed_corpus(Path(t))
-            mine = {p.name for p in (REPO / "skills").iterdir() if p.is_dir()}
+            mine = set(repo_skills())
             say(f"\nagainst all {n} installed skills (report):")
             for s in run_overlap(Path(t)):
                 if s["skill"] in mine:
