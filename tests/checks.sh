@@ -17,23 +17,35 @@ expect() { # expect WANT_RC LABEL DIR CMD...
   echo "$out" | grep -E '^FAIL' | head -3 | sed 's/^/       /'
 }
 fresh() { rm -rf "$t/r"; cp -R "$repo" "$t/r"; rm -rf "$t/r/.git"; }
+# The stale check runs in a scratch home, so it reads no live agent folder and
+# asks GitHub nothing (no rule names a branch). The ~/ paths that the clean
+# rules name are made there first, so a clean run passes on any machine. The
+# cost: this test does not show that those paths exist in the real home.
+sh_home=$t/home
+stale() { HOME="$sh_home" CLAUDE_CONFIG_DIR="$t/cfg" CODEX_HOME="$t/codex" python3 -m kit stale "$@"; }
 
 fresh
-expect 0 "stale: clean" "$t/r" python3 -m kit stale
+(cd "$t/r" && HOME="$sh_home" python3 -c '
+from kit import stale
+for f in stale.rule_files():
+    for p in stale.PATH_RE.findall(f.read_text(errors="replace")):
+        if not stale.placeholder(p):
+            stale.expand(p).mkdir(parents=True, exist_ok=True)')
+expect 0 "stale: clean" "$t/r" stale
 echo 'Keep the notes in `~/src/agent-kit/no-such-notes.md`.' >> "$t/r/.apm/instructions/standing.instructions.md"
-expect 1 "stale: planted dead path in the standing rules" "$t/r" python3 -m kit stale
+expect 1 "stale: planted dead path in the standing rules" "$t/r" stale
 fresh
 printf '\nRead `references/gone.md` first.\n' >> "$t/r/skills/deeper-task/SKILL.md"
-expect 1 "stale: planted dead path in a skill" "$t/r" python3 -m kit stale
+expect 1 "stale: planted dead path in a skill" "$t/r" stale
 fresh
 printf '\nThen run /no-such-skill on the result.\n' >> "$t/r/skills/deeper-task/SKILL.md"
-expect 1 "stale: planted dead skill name" "$t/r" python3 -m kit stale
+expect 1 "stale: planted dead skill name" "$t/r" stale
 
 # Memory records are reported, not failed, so these read the report.
 memcheck() { # memcheck WANT LABEL SENTENCE: WANT is "report" or "quiet"
   m="$t/cfg/projects/p/memory"; rm -rf "$t/cfg"; mkdir -p "$m"
   printf -- '---\nname: x\ndescription: x\n---\n\n%s\n' "$3" > "$m/x.md"
-  out=$(cd "$t/r" && CLAUDE_CONFIG_DIR="$t/cfg" python3 -m kit stale --memory 2>&1)
+  out=$(cd "$t/r" && stale --memory 2>&1)
   if echo "$out" | grep -q "path ~/no-such-folder-xyz"; then got=report; else got=quiet; fi
   if [ "$got" = "$1" ]; then echo "ok   $2 ($got)"; else echo "BAD  $2 ($got)"; fail=1; fi
 }
