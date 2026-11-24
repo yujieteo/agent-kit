@@ -241,7 +241,9 @@ exits 0 only when all of them pass. It does not touch the live agent folders
 
 After any edit under `skills/` or `.apm/`, run `python3 -m kit lock`, then
 `python3 -m kit lock --check`. The first command rewrites hashes.json; the
-second confirms it matches the source.
+second confirms it matches the source. `.claude/settings.json` stops Claude
+Code from editing hashes.json by hand, and makes it ask before `install` and
+`replay`, which write to the live home and run past requests.
 
 `results/` holds the text of past requests. It is in `.gitignore` and stays
 on this machine.
