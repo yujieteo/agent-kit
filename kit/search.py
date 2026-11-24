@@ -64,7 +64,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from .common import HOME, claude_dir, codex_dir, say, wilson
+from .common import HOME, claude_dir, codex_dir, copy_sqlite, say, wilson
 
 CACHE = Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "agent-kit"
 DB = CACHE / "sessions.db"
@@ -137,14 +137,6 @@ def codex_rollout_rows():
                 t = f"[{p.get('name')}] " + str(p.get("arguments") or p.get("input") or "")
             if t.strip():
                 yield sid, "codex", cwd, d.get("timestamp", ""), role, t
-
-
-def copy_sqlite(src: Path, dest: Path) -> Path:
-    for suffix in ("", "-wal", "-shm"):
-        s = Path(str(src) + suffix)
-        if s.exists():
-            shutil.copy2(s, dest / (src.name + suffix))
-    return dest / src.name
 
 
 def iso_ms(ms) -> str:

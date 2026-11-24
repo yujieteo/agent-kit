@@ -49,6 +49,19 @@ def sha256(path: Path) -> str:
     return "sha256:" + h.hexdigest()
 
 
+def copy_sqlite(src: Path, dest: Path) -> Path:
+    """Copy a live SQLite file with its -wal and -shm into dest; return the copy.
+
+    The copy is what gets opened, so the write-ahead log is read and the app's
+    own file is never locked.
+    """
+    for suffix in ("", "-wal", "-shm"):
+        s = Path(str(src) + suffix)
+        if s.exists():
+            shutil.copy2(s, dest / (src.name + suffix))
+    return dest / src.name
+
+
 def apm_bin() -> str:
     exe = os.environ.get("AGENT_KIT_APM") or shutil.which("apm")
     if not exe:
