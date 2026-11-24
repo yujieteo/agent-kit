@@ -6,11 +6,20 @@ import hashlib
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 HOME = Path(os.environ.get("HOME", str(Path.home())))
+
+
+def repo_skills() -> list[str]:
+    """The names of this repository's skills (the folders under skills/), sorted."""
+    return sorted(p.name for p in (REPO / "skills").iterdir() if p.is_dir())
+
+
+def cache_dir() -> Path:
+    """agent-kit's cache folder: $XDG_CACHE_HOME/agent-kit, else ~/.cache/agent-kit."""
+    return Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "agent-kit"
 
 
 def claude_dir() -> Path:
@@ -62,11 +71,16 @@ def copy_sqlite(src: Path, dest: Path) -> Path:
     return dest / src.name
 
 
-def apm_bin() -> str:
-    exe = os.environ.get("AGENT_KIT_APM") or shutil.which("apm")
+def find_tool(name: str, env: str, label: str | None = None) -> str:
+    """The program in $env, else name on PATH; stop with a message when neither is there."""
+    exe = os.environ.get(env) or shutil.which(name)
     if not exe:
-        sys.exit("agent-kit: apm is not on PATH (set AGENT_KIT_APM)")
+        raise SystemExit(f"agent-kit: {label or name} is not on PATH (set {env})")
     return exe
+
+
+def apm_bin() -> str:
+    return find_tool("apm", "AGENT_KIT_APM")
 
 
 def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:

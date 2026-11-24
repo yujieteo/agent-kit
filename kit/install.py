@@ -26,7 +26,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-from .common import REPO, HOME, apm_bin, apm_home, claude_dir, codex_dir, roots, run, say, sha256
+from .common import REPO, HOME, apm_bin, apm_home, claude_dir, codex_dir, repo_skills, roots, run, say, sha256
 
 MARK = "<!-- written by agent-kit from .apm/instructions; edit it there -->"
 HASHES = REPO / "hashes.json"
@@ -75,7 +75,7 @@ def apm_install(env: dict[str, str], source: Path, force: bool = False) -> None:
 def owned_files(rts: dict[str, Path]) -> dict[str, Path]:
     """The installed files of this repository, keyed root:relative-path."""
     out: dict[str, Path] = {}
-    skills = sorted(p.name for p in (REPO / "skills").iterdir() if p.is_dir())
+    skills = repo_skills()
     rules = sorted(f.name.removesuffix(".instructions.md") + ".md"
                    for f in (REPO / ".apm" / "instructions").glob("*.instructions.md"))
     for root in ("claude", "agents"):

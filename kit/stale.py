@@ -26,7 +26,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from .common import REPO, HOME, claude_dir, codex_dir, say
+from .common import REPO, HOME, claude_dir, codex_dir, repo_skills, say
 
 OWNER = os.environ.get("AGENT_KIT_GH_OWNER", "yujieteo")
 BUILTINS = {
@@ -45,7 +45,7 @@ CLAUDE_COMMANDS = {
 # ---- what exists --------------------------------------------------------------
 
 def skill_names() -> set[str]:
-    names = {p.name for p in (REPO / "skills").iterdir() if p.is_dir()}
+    names = set(repo_skills())
     roots = [claude_dir() / "skills", claude_dir() / "skills" / "synced", HOME / ".agents/skills",
              codex_dir() / "skills", codex_dir() / "skills" / ".system",
              claude_dir() / "plugins", codex_dir() / "plugins"]
