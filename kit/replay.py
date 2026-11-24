@@ -56,7 +56,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from .common import REPO, HOME, claude_dir, codex_dir, say
+from .common import REPO, HOME, claude_dir, codex_dir, mcnemar, say, wilson
 
 OUT = REPO / "results" / "replay"
 MINE = {p.name for p in (REPO / "skills").iterdir() if p.is_dir()}
@@ -411,21 +411,12 @@ def right(started: str, answer: str) -> bool:
     return started != answer[4:] if answer.startswith("not:") else started == answer
 
 
-def wilson(k: int, n: int) -> str:
-    """95% range for a share k/n (Wilson score interval)."""
+def wilson_text(k: int, n: int) -> str:
+    """k/n and its 95% Wilson range, as the report prints it."""
     if n == 0:
         return "-"
-    z, ph = 1.959964, k / n
-    c = (ph + z * z / (2 * n)) / (1 + z * z / n)
-    h = z / (1 + z * z / n) * (ph * (1 - ph) / n + z * z / (4 * n * n)) ** 0.5
-    return f"{k}/{n} [{max(0, c - h):.2f}, {min(1, c + h):.2f}]"
-
-
-def mcnemar(b: int, c: int) -> float:
-    """Exact two-sided McNemar test: b pairs right only after, c right only before."""
-    from math import comb
-    n = b + c
-    return 1.0 if n == 0 else min(1.0, 2 * sum(comb(n, i) for i in range(min(b, c) + 1)) / 2 ** n)
+    lo, hi = wilson(k, n)
+    return f"{k}/{n} [{lo:.2f}, {hi:.2f}]"
 
 
 def sign_flip(diffs: list[float]) -> float:
@@ -459,7 +450,7 @@ def report_ab(ans: dict[str, str]) -> None:
             say(line)
             for cond in ("before", "after"):
                 k = sum(right(x, a) for x in d[cond].values()) if a else None
-                say(f"      {cond:6} {cnt(cond):70} " + (f"right {wilson(k, len(d[cond]))}" if a else ""))
+                say(f"      {cond:6} {cnt(cond):70} " + (f"right {wilson_text(k, len(d[cond]))}" if a else ""))
             if a:
                 runs = d["before"].keys() & d["after"].keys()
                 b += sum(right(d["after"][i], a) and not right(d["before"][i], a) for i in runs)
@@ -492,7 +483,7 @@ def cmd_report() -> int:
         k = sum(right(r["started"], ans[r["session"]]) for r in scored)
         same = sum(r["started"] == r["label"] for r in scored)
         say(f"\n{a}: {len(rs)} requests replayed, {len(scored)} with an answer")
-        say(f"  right by what happened next: {wilson(k, len(scored))}")
+        say(f"  right by what happened next: {wilson_text(k, len(scored))}")
         say(f"  same skill as the original session (the old pass rule): {same}/{len(scored)}")
         for r in scored:
             if not right(r["started"], ans[r["session"]]):

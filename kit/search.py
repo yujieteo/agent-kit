@@ -64,7 +64,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from .common import HOME, claude_dir, codex_dir, say
+from .common import HOME, claude_dir, codex_dir, say, wilson
 
 CACHE = Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "agent-kit"
 DB = CACHE / "sessions.db"
@@ -660,28 +660,16 @@ def pi_rank_all(checkout: Path, root: Path, cases: list[dict], exclude: set[str]
 # ---- scores ----
 
 def scores(cases: list[dict], ranks: list[list[str]]) -> dict:
-    """Recall at 5 and mean reciprocal rank, with a 95% range from resampling searching sessions."""
-    import random
+    """Found in the top 5 (with its 95% Wilson range) and mean reciprocal rank."""
     per = []
     for c, r in zip(cases, ranks):
         pos = r.index(c["answer"]) + 1 if c["answer"] in r else None
         per.append((c["searcher"], pos))
-    def stat(rows):
-        if not rows:
-            return float("nan"), float("nan")
-        return (sum(p is not None and p <= TOPK for _, p in rows) / len(rows),
-                sum(1 / p for _, p in rows if p) / len(rows))
-    r5, mrr = stat(per)
-    groups: dict[str, list] = {}
-    for row in per:
-        groups.setdefault(row[0], []).append(row)
-    keys, rng, boot = list(groups), random.Random(0), []
-    for _ in range(10_000):
-        boot.append(stat([row for k in rng.choices(keys, k=len(keys)) for row in groups[k]]))
-    lo_hi = lambda xs: (sorted(xs)[249], sorted(xs)[9749])
-    return {"n": len(per), "sessions": len(keys), "recall5": r5, "mrr": mrr,
-            "recall5_range": lo_hi([b[0] for b in boot]), "mrr_range": lo_hi([b[1] for b in boot]),
-            "ranks": [p for _, p in per]}
+    n, top = len(per), sum(p is not None and p <= TOPK for _, p in per)
+    nan = float("nan")
+    return {"n": n, "sessions": len({s for s, _ in per}),
+            "recall5": top / n if n else nan, "mrr": sum(1 / p for _, p in per if p) / n if n else nan,
+            "recall5_range": wilson(top, n), "ranks": [p for _, p in per]}
 
 
 def copied(db: sqlite3.Connection, c: dict) -> bool:
@@ -751,7 +739,7 @@ def cmd_proof(db: sqlite3.Connection, args: list[str]) -> int:
             say(f"\n{part} cases: {len(cases)} from {len({c['searcher'] for c in cases})} searching sessions")
             for m, s in out[part].items():
                 say(f"  {m:22} recall@5 {s['recall5']:.2f} {fmt(s['recall5_range'])}  "
-                    f"MRR {s['mrr']:.2f} {fmt(s['mrr_range'])}  ranks {s['ranks']}")
+                    f"MRR {s['mrr']:.2f}  ranks {s['ranks']}")
         (PROOF / "scores.json").write_text(json.dumps(out, indent=1))
         return 0
     raise SystemExit("search-proof cases|choose|score")

@@ -62,3 +62,20 @@ def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
 
 def say(msg: str) -> None:
     print(msg, flush=True)
+
+
+def wilson(k: int, n: int) -> tuple[float, float]:
+    """95% range for a share k/n (Wilson score interval). n == 0 gives (nan, nan)."""
+    if n == 0:
+        return float("nan"), float("nan")
+    z, ph = 1.959964, k / n
+    c = (ph + z * z / (2 * n)) / (1 + z * z / n)
+    h = z / (1 + z * z / n) * (ph * (1 - ph) / n + z * z / (4 * n * n)) ** 0.5
+    return max(0.0, c - h), min(1.0, c + h)
+
+
+def mcnemar(b: int, c: int) -> float:
+    """Exact two-sided McNemar test: b pairs right only after, c right only before."""
+    from math import comb
+    n = b + c
+    return 1.0 if n == 0 else min(1.0, 2 * sum(comb(n, i) for i in range(min(b, c) + 1)) / 2 ** n)
