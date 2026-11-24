@@ -168,7 +168,6 @@ def codex_config_merge(path: Path) -> None:
     for key, v in want.items():
         table, _, name = key.rpartition(".")
         line = f"{name} = {toml_value(v)}"
-        sec, start, end = "", None, len(lines)
         # find the table's span ("" is the top, before the first header)
         spans: dict[str, tuple[int, int]] = {}
         cur, cur_start = "", 0
