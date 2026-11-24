@@ -26,11 +26,15 @@ stale() { HOME="$sh_home" CLAUDE_CONFIG_DIR="$t/cfg" CODEX_HOME="$t/codex" pytho
 
 fresh
 (cd "$t/r" && HOME="$sh_home" python3 -c '
+import os
+from pathlib import Path
 from kit import stale
+home = Path(os.environ["HOME"])
 for f in stale.rule_files():
     for p in stale.PATH_RE.findall(f.read_text(errors="replace")):
-        if not stale.placeholder(p):
-            stale.expand(p).mkdir(parents=True, exist_ok=True)')
+        d = stale.expand(p)
+        if not stale.placeholder(p) and d.is_relative_to(home):  # never outside the scratch home
+            d.mkdir(parents=True, exist_ok=True)')
 expect 0 "stale: clean" "$t/r" stale
 echo 'Keep the notes in `~/src/agent-kit/no-such-notes.md`.' >> "$t/r/.apm/instructions/standing.instructions.md"
 expect 1 "stale: planted dead path in the standing rules" "$t/r" stale
