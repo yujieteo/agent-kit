@@ -136,17 +136,43 @@ def flat(d: dict, pre: str = "") -> dict[str, object]:
     return out
 
 
+def merge_settings(have: dict, want: dict) -> None:
+    """Put each declared key of want into have, and keep every other key of have.
+
+    A table is merged key by key. A list keeps the items already there and gets
+    each declared item it lacks, at the end, so the user's own permission rules
+    stay. Any other value is replaced.
+    """
+    for k, v in want.items():
+        if isinstance(v, dict):
+            if not isinstance(have.get(k), dict):
+                have[k] = {}
+            merge_settings(have[k], v)
+        elif isinstance(v, list) and isinstance(have.get(k), list):
+            have[k] += [x for x in v if x not in have[k]]
+        else:
+            have[k] = list(v) if isinstance(v, list) else v
+
+
+def settings_gaps(have: dict, want: dict) -> list[str]:
+    """The declared keys that have does not hold: a wrong value, or list items it lacks."""
+    bad = []
+    have_f = flat(have)
+    for k, v in flat(want).items():
+        got = have_f.get(k)
+        if isinstance(v, list) and isinstance(got, list):
+            lacks = [x for x in v if x not in got]
+            if lacks:
+                bad.append(f"{k} lacks {lacks!r}")
+        elif got != v:
+            bad.append(f"{k} is {got!r}, not {v!r}")
+    return bad
+
+
 def claude_settings_merge(path: Path) -> None:
     want = json.loads((REPO / "agents/claude/settings.json").read_text())
     have = json.loads(path.read_text()) if path.exists() else {}
-
-    def merge(a: dict, b: dict) -> None:
-        for k, v in b.items():
-            if isinstance(v, dict):
-                merge(a.setdefault(k, {}), v)
-            else:
-                a[k] = v
-    merge(have, want)
+    merge_settings(have, want)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".json.agent-kit")
     tmp.write_text(json.dumps(have, indent=2, ensure_ascii=False) + "\n")
@@ -193,10 +219,9 @@ def codex_config_merge(path: Path) -> None:
 
 def settings_problems(claude: Path, codex: Path) -> list[str]:
     bad = []
-    want = flat(json.loads((REPO / "agents/claude/settings.json").read_text()))
     p = claude / "settings.json"
-    have = flat(json.loads(p.read_text())) if p.exists() else {}
-    bad += [f"{p}: {k} is {have.get(k)!r}, not {v!r}" for k, v in want.items() if have.get(k) != v]
+    have = json.loads(p.read_text()) if p.exists() else {}
+    bad += [f"{p}: {g}" for g in settings_gaps(have, json.loads((REPO / "agents/claude/settings.json").read_text()))]
     want = flat(tomllib.loads((REPO / "agents/codex/config.toml").read_text()))
     p = codex / "config.toml"
     have = flat(tomllib.loads(p.read_text())) if p.exists() else {}

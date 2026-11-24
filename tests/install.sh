@@ -11,7 +11,8 @@ export APM_HOME=$t/home/.local/share/apm XDG_CACHE_HOME=$t/home/.cache
 mkdir -p "$CLAUDE_CONFIG_DIR" "$CODEX_HOME"
 # Today's state: a hand CLAUDE.md, an empty AGENTS.md, Codex settings of its own.
 printf 'hand-written\n' > "$CLAUDE_CONFIG_DIR/CLAUDE.md"
-printf '{"theme": "light", "model": "x"}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
+printf '{"theme": "light", "model": "x", "permissions": {"allow": ["Bash(ls:*)"], "deny": ["Read(**/.env)"]}}\n' \
+  > "$CLAUDE_CONFIG_DIR/settings.json"
 : > "$CODEX_HOME/AGENTS.md"
 printf 'notify = ["a"]\nmodel = "other"\n\n[desktop]\nx = 1\n' > "$CODEX_HOME/config.toml"
 kit() { (cd "$repo" && python3 -m kit "$@") 2>&1; }
@@ -31,6 +32,10 @@ expect() { # expect WANT_RC LABEL CMD...
 expect 0 "clean install and verify" kit install
 grep -q '"theme": "dark"' "$CLAUDE_CONFIG_DIR/settings.json" && grep -q '"model": "x"' "$CLAUDE_CONFIG_DIR/settings.json" \
   && echo "ok   settings.json keeps the app's keys" || { echo "BAD  settings merge"; fail=1; }
+python3 -c 'import json, sys; p = json.load(open(sys.argv[1]))["permissions"]
+sys.exit(not (p["allow"] == ["Bash(ls:*)"] and p["deny"] == ["Read(**/.env)"] and p["defaultMode"] == "auto"))' \
+  "$CLAUDE_CONFIG_DIR/settings.json" && echo "ok   settings.json keeps the user's permission lists" \
+  || { echo "BAD  permission lists"; fail=1; }
 grep -q '^notify = \["a"\]' "$CODEX_HOME/config.toml" && grep -q '^model = "gpt' "$CODEX_HOME/config.toml" \
   && echo "ok   config.toml keeps Codex's lines" || { echo "BAD  config merge"; fail=1; }
 grep -q 'hand-written' "$CLAUDE_CONFIG_DIR/CLAUDE.md" && echo "ok   hand CLAUDE.md left alone" || { echo "BAD  CLAUDE.md"; fail=1; }
