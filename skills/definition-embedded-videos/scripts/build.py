@@ -1158,11 +1158,6 @@ def fig_html(b, meta):
 
 # ---------------------------------------------------------------- voice
 
-def wav_seconds(p):
-    with wave.open(str(p)) as w:
-        return w.getnframes() / w.getframerate()
-
-
 def build_audio(jobs, cache, a, njobs):
     """jobs: {hash: text}. Synthesise the missing ones in parallel worker processes."""
     cache.mkdir(parents=True, exist_ok=True)
