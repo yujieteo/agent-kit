@@ -254,7 +254,7 @@ overlap check (a copied description). It also checks that `stale --memory`
 reports a dead path in a record, and does not report it in a sentence that
 calls it gone. Both pass on 2026-11-22 (measured). They need the flake's
 apm and skill-reach: set `AGENT_KIT_APM` to `bin/apm` in the output of
-`nix build --print-out-paths .#apm`, and `AGENT_KIT_REACH` to `bin/reach` in
+`nix build --no-link --print-out-paths .#apm`, and `AGENT_KIT_REACH` to `bin/reach` in
 the output of `.#skill-reach`.
 
 `tests/stats.py` checks the 95% ranges given above for 4 cases.
