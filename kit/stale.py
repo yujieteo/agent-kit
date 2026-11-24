@@ -56,9 +56,6 @@ def skill_names() -> set[str]:
                 m = re.search(r"^name:\s*['\"]?([\w:.-]+)", f.read_text(errors="replace")[:500], re.M)
                 if m:
                     names.add(m.group(1))
-    extra = REPO / "known-skills.txt"
-    if extra.exists():
-        names |= {l.strip() for l in extra.read_text().splitlines() if l.strip() and not l.startswith("#")}
     return names
 
 
