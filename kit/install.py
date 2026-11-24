@@ -20,10 +20,8 @@ What apm does not do, agent-kit does:
 from __future__ import annotations
 
 import json
-import subprocess
 import os
 import re
-import shutil
 import tempfile
 import tomllib
 from pathlib import Path
@@ -233,15 +231,16 @@ def cmd_verify() -> int:
             bad.append(f"{k}: {got} != hashes.json {want[k]}")
     if not apm.is_dir():
         bad.append(f"no apm lock in {apm}: agent-kit is not installed on this machine")
-        r = subprocess.CompletedProcess([], 1, "", "")
+        audit = 1
     else:
         r = run([apm_bin(), "audit", "--ci"], cwd=apm, capture_output=True,
                 env=apm_env(HOME, claude, codex, apm))
-    if r.returncode and apm.is_dir():
-        drift = [l.strip() for l in (r.stdout + r.stderr).splitlines() if "hash-drift" in l or "[x]" in l]
-        bad.append("apm audit --ci: exit %d: %s" % (r.returncode, "; ".join(drift) or "see apm audit"))
+        audit = r.returncode
+        if audit:
+            drift = [l.strip() for l in (r.stdout + r.stderr).splitlines() if "hash-drift" in l or "[x]" in l]
+            bad.append("apm audit --ci: exit %d: %s" % (audit, "; ".join(drift) or "see apm audit"))
     bad += settings_problems(claude, codex)
     for b in bad:
         say("FAIL " + b)
-    say(f"verify: {'FAIL' if bad else 'PASS'} ({len(want)} files in hashes.json, apm audit exit {r.returncode})")
+    say(f"verify: {'FAIL' if bad else 'PASS'} ({len(want)} files in hashes.json, apm audit exit {audit})")
     return 1 if bad else 0
