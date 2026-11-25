@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 USAGE = """agent-kit COMMAND
@@ -22,9 +23,20 @@ USAGE = """agent-kit COMMAND
 """
 
 
+# `nix run` without AGENT_KIT_REPO runs from a copy of the repository that has no
+# .git, tests or results/ and is deleted on exit (see flake.nix). These commands
+# write into the repository or read its history and results, so they stop there.
+NEEDS_CLONE = {"lock": "writes hashes.json into the repository", "replay": "reads and writes results/ and git history",
+               "search-proof": "reads and writes results/"}
+
+
 def main() -> int:
     a = sys.argv[1:]
     cmd = a[0] if a else "help"
+    if os.environ.get("AGENT_KIT_COPY") and cmd in NEEDS_CLONE and not (cmd == "lock" and "--check" in a):
+        print(f"agent-kit {cmd}: this command {NEEDS_CLONE[cmd]}, so it needs a clone. Under nix run, set\n"
+              f"AGENT_KIT_REPO to a clone of agent-kit, or run `python3 -m kit {cmd}` in the clone.", file=sys.stderr)
+        return 2
     if cmd == "install":
         from .install import cmd_install
         return cmd_install("--force" in a[1:])

@@ -2,7 +2,7 @@
 # tests/check.sh: every check of this repository in one command. It builds the
 # flake's apm and skill-reach, then runs each test script and shellcheck.
 # It reads and writes no live agent folder (~/.config/claude, ~/.agents,
-# ~/.codex): install.sh installs into a scratch home, and the stale checks
+# ~/.config/codex): install.sh installs into a scratch home, and the stale checks
 # run in one.
 # Exit 0 only when every part passes.
 set -u

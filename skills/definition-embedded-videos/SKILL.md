@@ -45,17 +45,13 @@ The cost of the definitions is one glossary. The cost of the sentences is zero. 
 
 ## Check
 
-Print what the voice will say, and read it:
+Write what the voice will say, and read it:
 
 ```
-python3 - <<'E'
-import sys; sys.path.insert(0, "SKILL_DIR/scripts")
-import build; from pathlib import Path
-G = build.Glossary(Path("glossary.txt"))
-for b in build.read_beats(Path("01-name.beats"), G)[1]:
-    print(build.for_voice(build.spoken(b)[0], G), "\n")
-E
+python3 scripts/build.py WORK --lint --narration
 ```
+
+This writes `WORK/NAME.narration.txt` for each beats file: one beat per paragraph, each with its line number in the beats file. Add `--only '01-*'` for one file.
 
 Look for: a definition that is a loose description and not the definition, a common word that the build took for a glossary term, a definition that lands in the middle of a noun phrase, two definitions in a row, a symbol read as "C underscore 1", a citation key read aloud. Each has a one-mark fix in [format](references/format.md).
 

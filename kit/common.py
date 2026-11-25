@@ -17,6 +17,18 @@ def repo_skills() -> list[str]:
     return sorted(p.name for p in (REPO / "skills").iterdir() if p.is_dir())
 
 
+# Text in a user turn of a Claude Code log that the user did not type as a request:
+# app notices, a /compact or /clear command, and the "Continue" that a resumed
+# session sends. kit/replay.py and kit/search.py both skip it.
+NOT_REQUESTS = ("<local-command", "<command-name>/compact", "<command-name>/clear", "Caveat:",
+                "[Request interrupted", "<task-notification>", "<system-reminder>", "Continue")
+
+
+def not_a_request(text: str) -> bool:
+    """True when a Claude Code user turn is app text, not a request the user typed."""
+    return text.startswith(NOT_REQUESTS)
+
+
 def cache_dir() -> Path:
     """agent-kit's cache folder: $XDG_CACHE_HOME/agent-kit, else ~/.cache/agent-kit."""
     return Path(os.environ.get("XDG_CACHE_HOME") or HOME / ".cache") / "agent-kit"

@@ -419,7 +419,7 @@ def auto_split(raw, G, scope, section, say_memo, mem=None):
     return [part + marks for part in split(core, terms(core))]
 
 
-def colourise(tex, syms, excl, order, circled):
+def colourise(tex, syms, excl, order):
     """Mark glossary symbols inside a formula. Returns the token list with (entry, tokens) groups."""
     found = [(m.group(0), m.start() > 0 and tex[m.start() - 1].isspace()) for m in TEXTOK.finditer(tex)]
     toks, gap = [t for t, _ in found], [g for _, g in found]
@@ -655,7 +655,7 @@ def compose(b, G, say_memo, prev, helped=None, mem=None, ctx=None):
             disp = m.group(1) is not None
             tex = (m.group(1) if disp else m.group(3)).strip()
             say = m.group(2) if disp else m.group(4)
-            marked = colourise(tex, syms, excl, order, None)
+            marked = colourise(tex, syms, excl, order)
             memo_key = " ".join(textoks(tex))
             if say is None:
                 say = say_memo.get(memo_key)
@@ -735,7 +735,7 @@ def compose(b, G, say_memo, prev, helped=None, mem=None, ctx=None):
                 say = say_memo.get(key)
             if say is None:
                 whole = G.find(tex, b.scope)
-                say = whole.say if whole and whole.kind == "sym" else auto_say(colourise(tex, [], set(), {}, None))
+                say = whole.say if whole and whole.kind == "sym" else auto_say(colourise(tex, [], set(), {}))
             if say is None:
                 b.problems.append(f"formula ${tex}$ inside a meaning has no [[spoken form]]")
                 b.unsaid.append(tex)
