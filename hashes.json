@@ -12,7 +12,7 @@
   "agents:skills/definition-embedded-videos/references/design.md": "sha256:868dcf01eee007e740ae028368443dcc408be38c442552ad5b6d12fa97c30706",
   "agents:skills/definition-embedded-videos/references/format.md": "sha256:ddd2239f2df8d10aad2fa29866b6ac4b2598d155670a3865f398a09b52bf9860",
   "agents:skills/definition-embedded-videos/references/writing.md": "sha256:1b61ecc5a40df394bf66d53fa98798be227c6736b1eb4931838d467f1f6b3ef0",
-  "agents:skills/definition-embedded-videos/scripts/build.py": "sha256:4b6fc337b641c137fd5137cc3ce76a2c08a95ff786133ad0aee37723bd2c8ed3",
+  "agents:skills/definition-embedded-videos/scripts/build.py": "sha256:2f852bb815284b83e37aa9150b427914af78bca42d8a03e8ad0339685ac0f603",
   "agents:skills/definition-embedded-videos/scripts/frame.html": "sha256:48449fa93f659b87801466e803b7ffbf6cabf769e9eb7fd88a42d38d80024132",
   "agents:skills/definition-embedded-videos/scripts/prepare.py": "sha256:edf57de19e8278a03eaffc8bdd1cd5f8dd4bab4869ff33fa4548d95f1038ea8f",
   "agents:skills/definition-embedded-videos/scripts/render.js": "sha256:027f16cc98ceb350c7996c87875baeb46f448beec9e7ff9145d21607fa97ced8",

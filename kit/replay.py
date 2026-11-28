@@ -212,7 +212,10 @@ def run_claude(req: str, model: str, timeout: int = 180) -> dict:
             if started or d.get("type") == "result" or time.time() - t0 > timeout:
                 break
     finally:
-        os.killpg(p.pid, signal.SIGTERM)
+        try:
+            os.killpg(p.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
         p.wait()
     out = {"started": started or "none", "skills_listed": listed, "seconds": round(time.time() - t0, 1)}
     if not started and (result is None or result.get("is_error")):
@@ -331,7 +334,7 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
                 if (trees["before"] / n / "SKILL.md").exists()
                 and (trees["before"] / n / "SKILL.md").read_bytes() != (REPO / "skills" / n / "SKILL.md").read_bytes()]
         live = {n: claude_dir() / "skills" / n / "SKILL.md" for n in swap} if agent == "claude" else {}
-        saved = {n: f.read_bytes() for n, f in live.items()}
+        saved = {n: f.read_bytes() if f.exists() else None for n, f in live.items()}
         if live:  # put the files back on `kill` too
             signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
         homes = {}
@@ -349,6 +352,7 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
                         continue
                     if agent == "claude":
                         for n, f in live.items():
+                            f.parent.mkdir(parents=True, exist_ok=True)
                             f.write_bytes((trees[cond] / n / "SKILL.md").read_bytes())
 
                     slots: queue.Queue[int] = queue.Queue()
@@ -372,7 +376,10 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
                     say(f"run {i} {cond}: " + ", ".join(r["started"] for r in res))
         finally:
             for n, f in live.items():
-                f.write_bytes(saved[n])
+                if saved[n] is None:
+                    f.unlink(missing_ok=True)
+                else:
+                    f.write_bytes(saved[n])
 
 
 def cmd_replay(args: list[str]) -> int:

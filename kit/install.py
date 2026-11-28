@@ -1,8 +1,7 @@
 """install, lock and verify: the files the user writes, put in place and hashed.
 
 apm (microsoft/apm) does most of it:
-- `apm install -g <repo>` copies skills/ to $CLAUDE_CONFIG_DIR/skills and
-  ~/.agents/skills, and .apm/instructions to $CLAUDE_CONFIG_DIR/rules;
+- `apm install -g -t codex <repo>` copies skills/ to ~/.agents/skills;
 - `apm audit --ci`, run in $APM_HOME, fails on a file that differs from apm's
   own lock.
 
@@ -14,7 +13,7 @@ What apm does not do, agent-kit does:
   each machine writes its own, so it only compares a machine with itself.
   hashes.json, in this repository, holds the hash of each installed file,
   keyed by root and relative path. `verify` compares the live files with it.
-- The keys of each agent's settings that are the user's (agents/*).
+- The keys of Codex's settings that are the user's (agents/codex/config.toml).
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-from .common import REPO, HOME, apm_bin, apm_home, claude_dir, codex_dir, repo_skills, roots, run, say, sha256
+from .common import REPO, HOME, apm_bin, apm_home, codex_dir, repo_skills, roots, run, say, sha256
 
 MARK = "<!-- written by agent-kit from .apm/instructions; edit it there -->"
 HASHES = REPO / "hashes.json"
@@ -55,9 +54,10 @@ def write_agents_md(codex: Path) -> None:
     p.write_text(agents_md())
 
 
-def apm_env(home: Path, claude: Path, codex: Path, apm: Path) -> dict[str, str]:
+def apm_env(home: Path, codex: Path, apm: Path) -> dict[str, str]:
     env = dict(os.environ)
-    env.update(HOME=str(home), CLAUDE_CONFIG_DIR=str(claude), CODEX_HOME=str(codex),
+    env.pop("CLAUDE_CONFIG_DIR", None)
+    env.update(HOME=str(home), CODEX_HOME=str(codex),
                APM_HOME=str(apm), APM_NON_INTERACTIVE="1")
     return env
 
@@ -93,10 +93,10 @@ def build_hashes(source: Path = REPO) -> dict:
     """Install into an empty home, and hash what landed."""
     with tempfile.TemporaryDirectory(prefix="agent-kit-lock-") as t:
         home = Path(t)
-        claude, codex, apm = home / ".config/claude", home / ".config/codex", home / ".local/share/apm"
-        apm_install(apm_env(home, claude, codex, apm), source)
+        codex, apm = home / ".config/codex", home / ".local/share/apm"
+        apm_install(apm_env(home, codex, apm), source)
         write_agents_md(codex)
-        files = owned_files(roots(home, claude, codex))
+        files = owned_files(roots(home, codex))
         missing = [k for k, p in files.items() if not p.exists()]
         if missing:
             raise SystemExit(f"agent-kit lock: apm did not write {missing}")
@@ -179,19 +179,19 @@ def settings_problems(codex: Path) -> list[str]:
 # ---- install and verify -----------------------------------------------------
 
 def cmd_install(force: bool = False) -> int:
-    claude, codex, apm = claude_dir(), codex_dir(), apm_home()
+    codex, apm = codex_dir(), apm_home()
     apm.mkdir(parents=True, exist_ok=True)
-    apm_install(apm_env(HOME, claude, codex, apm), REPO, force)
+    apm_install(apm_env(HOME, codex, apm), REPO, force)
     write_agents_md(codex)
     codex_config_merge(codex / "config.toml")
     return cmd_verify()
 
 
 def cmd_verify() -> int:
-    claude, codex, apm = claude_dir(), codex_dir(), apm_home()
+    codex, apm = codex_dir(), apm_home()
     bad: list[str] = []
     want = json.loads(HASHES.read_text())["files"]
-    live = owned_files(roots(HOME, claude, codex))
+    live = owned_files(roots(HOME, codex))
     for k in sorted(set(want) | set(live)):
         p = live.get(k)
         got = sha256(p) if p and p.exists() else "absent"
@@ -204,7 +204,7 @@ def cmd_verify() -> int:
         audit = 1
     else:
         r = run([apm_bin(), "audit", "--ci"], cwd=apm, capture_output=True,
-                env=apm_env(HOME, claude, codex, apm))
+                env=apm_env(HOME, codex, apm))
         audit = r.returncode
         if audit:
             drift = [l.strip() for l in (r.stdout + r.stderr).splitlines() if "hash-drift" in l or "[x]" in l]

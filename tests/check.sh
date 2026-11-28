@@ -23,7 +23,7 @@ apm=$(echo "$out" | grep -- '-apm-cli-') reach=$(echo "$out" | grep -- '-skill-r
 export AGENT_KIT_APM=$apm/bin/apm AGENT_KIT_REACH=$reach/bin/reach
 
 # The XDG variables of the shell would point the scratch install at live folders.
-part "tests/install.sh" env -u XDG_CONFIG_HOME -u XDG_DATA_HOME -u XDG_STATE_HOME bash tests/install.sh
+part "tests/install.sh" env -u XDG_CONFIG_HOME -u XDG_DATA_HOME -u XDG_STATE_HOME -u CLAUDE_CONFIG_DIR bash tests/install.sh
 part "tests/checks.sh" bash tests/checks.sh
 part "tests/stats.py" python3 tests/stats.py
 part "tests/video.sh" bash tests/video.sh

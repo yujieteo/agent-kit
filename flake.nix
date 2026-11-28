@@ -1,5 +1,5 @@
 {
-  description = "agent-kit: what the user teaches Claude Code and Codex, installed with hashes";
+  description = "agent-kit: what the user teaches Codex, installed with hashes";
 
   # Packages: agent-kit (default), apm and skill-reach. agent-kit finds both
   # on its PATH. skill-reach needs three Python packages that nixpkgs 26.05

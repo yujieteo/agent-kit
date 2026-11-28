@@ -1,8 +1,9 @@
 # agent-kit
 
-What the user teaches Claude Code and Codex: four skills, the standing
-instructions, and each agent's own settings. One command installs them into
-both agents, on any machine, and checks them by SHA-256.
+What the user teaches Codex: four skills, the standing instructions, and
+Codex's own settings. One command installs them on any machine and checks them
+by SHA-256. The inventory, staleness, overlap, replay, and search commands
+also inspect Claude Code's config and logs where present.
 
 ```sh
 agent-kit install [--force] # apm install, Codex AGENTS.md, settings merge, then verify
@@ -45,14 +46,9 @@ shows the installed copies are the ones in hashes.json.
 
 | What | Source in this repository | Installed to |
 |---|---|---|
-| Skills (4) | `skills/` | `$CLAUDE_CONFIG_DIR/skills`, `~/.agents/skills` (for Codex) |
-| Shared instructions | `.apm/instructions/standing.instructions.md` | `$CLAUDE_CONFIG_DIR/rules/standing.md`, `$CODEX_HOME/AGENTS.md` |
-| Claude Code settings | `agents/claude/settings.json` (declared keys) | merged into `$CLAUDE_CONFIG_DIR/settings.json` |
+| Skills (4) | `skills/` | `~/.agents/skills` (for Codex) |
+| Shared instructions | `.apm/instructions/standing.instructions.md` | `$CODEX_HOME/AGENTS.md` |
 | Codex settings | `agents/codex/config.toml` (declared keys) | merged into `$CODEX_HOME/config.toml` |
-
-The Claude Code merge sets each declared key and keeps every other key. A
-list, such as `permissions.deny`, keeps the user's own items and gets each
-declared item it lacks. `verify` accepts extra items in a list.
 
 `inventory.tsv` sorts every top-level entry of both config folders into
 four kinds: written by the user (here), memory (backup), session logs
@@ -64,9 +60,8 @@ only Codex's own `sandbox_mode` key is in `agents/codex/config.toml`.
 
 ## Upstream projects: what was used and why
 
-- **microsoft/apm 0.37.0** installs the skills and the rules, and its
-  `apm audit --ci` catches an edited installed file. It reads
-  `CLAUDE_CONFIG_DIR` at user scope (measured). It puts Codex skills only in
+- **microsoft/apm 0.37.0** installs the Codex skills (`-t codex`), and its
+  `apm audit --ci` catches an edited installed file. It puts Codex skills only in
   `~/.agents/skills`, not in `$CODEX_HOME/skills` (measured). Codex reads
   both folders (measured: it lists the four from `~/.agents/skills`, and past
   sessions read `$CODEX_HOME/skills/atomic-math-workbooks`). `apm compile -g` never writes Codex's AGENTS.md (read in
@@ -262,9 +257,8 @@ second confirms it matches the source.
 on this machine.
 
 `tests/install.sh` installs into a scratch home. It needs a clean pass, and a
-fail for each of four planted faults: an edited Claude skill copy, an edited
-`~/.agents` copy, an edited Codex AGENTS.md, and an edited source with a
-stale hashes.json. `tests/checks.sh` does the same for the stale check (a
+fail for each of three planted faults: an edited `~/.agents` copy, an edited
+Codex AGENTS.md, and an edited source with a stale hashes.json. `tests/checks.sh` does the same for the stale check (a
 dead path in the rules, a dead path in a skill, a dead skill name) and the
 overlap check (a copied description). It also checks that `stale --memory`
 reports a dead path in a record, and does not report it in a sentence that
@@ -274,10 +268,6 @@ apm and skill-reach: set `AGENT_KIT_APM` to `bin/apm` in the output of
 the output of `.#skill-reach`.
 
 `tests/stats.py` checks the 95% ranges given above for 4 cases.
-`tests/settings.py` checks the Claude Code settings merge: a list such as
-`permissions.deny` keeps the user's own items and gets each declared item it
-lacks, once, and `verify` accepts extra items in a list but not a missing
-declared one.
 `tests/video.sh` runs the video skill's `prepare.py` and `build.py --lint`
 on a tiny Markdown sample in a scratch folder, with no voice. A formula that
 the build cannot say must fail the lint.

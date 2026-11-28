@@ -349,7 +349,7 @@ def read_beats(path, G):
 def more_beats(b):
     """The pages that follow a beat: the meaning of each glossary word that its definitions use."""
     out, cur, n = [], [], 0
-    for root, word, h, found, layer, defn in b.more:
+    for root, word, found, layer, defn in b.more:
         if cur and n + len(def_say(defn).split()) + 2 > MORE_WORDS:
             out.append(cur)
             cur, n = [], 0
@@ -428,21 +428,24 @@ def colourise(tex, syms, excl, order):
         # a letter inside \mathbb{R} or \mathcal{R}_{k-1} is not the symbol R: only an entry that has the font
         # command itself (it starts at the command) can match there
         infont = i >= 2 and toks[i - 1] == "{" and toks[i - 2] in FONT
-        for e in syms:
-            n = len(e.toks)
-            if infont:
-                continue
-            if toks[i:i + n] == e.toks:
-                if e.key in excl:                   # `[-key]`: the symbol stays plain, and a shorter symbol
-                    out.extend(toks[i:i + n])       # inside it (R in \mathcal{R}_k) is not matched either
-                    gaps.extend((g, None) for g in gap[i:i + n])
+        if not infont:
+            for e in syms:
+                n = len(e.toks)
+                if toks[i:i + n] == e.toks:
+                    if e.key in excl:                   # `[-key]`: the symbol stays plain, and a shorter symbol
+                        out.extend(toks[i:i + n])       # inside it (R in \mathcal{R}_k) is not matched either
+                        gaps.extend((g, None) for g in gap[i:i + n])
+                        i += n
+                        break
+                    order.setdefault(e.key, e)
+                    out.append((e, toks[i:i + n]))
+                    gaps.append((gap[i], gap[i:i + n]))
                     i += n
                     break
-                order.setdefault(e.key, e)
-                out.append((e, toks[i:i + n]))
-                gaps.append((gap[i], gap[i:i + n]))
-                i += n
-                break
+            else:
+                out.append(toks[i])
+                gaps.append((gap[i], None))
+                i += 1
         else:
             out.append(toks[i])
             gaps.append((gap[i], None))
@@ -764,10 +767,10 @@ def compose(b, G, say_memo, prev, helped=None, mem=None, ctx=None):
             if h.forms and head.lower() != h.forms[0].lower() and head.lower().endswith("s") \
                     and not h.forms[0].lower().endswith("s"):
                 head = h.forms[0]
-            item = [root, head, h, [], layer, settle(h.short or h.defn)]
+            item = [root, head, [], layer, settle(h.short or h.defn)]
             b.more.append(item)                     # before its own helpers: each word is followed by the words it uses
             if st == "new":
-                item[3] = gloss(h, item[5], root, layer + 1)
+                item[2] = gloss(h, item[4], root, layer + 1)
         return found
 
     def put_def(e, text=None):
@@ -980,7 +983,7 @@ def lint_glossary(G):
             errs.append(f"{e.line} ({e.key}): definition loop: " + " -> ".join(k for _, k in loop) + f" -> {e.key}")
             return
         state[id(e)] = 1
-        for f, o in uses[id(e)]:
+        for _, o in uses[id(e)]:
             walk(o, path + [(e, e.key)])
         state[id(e)] = 2
     for e in G.entries:

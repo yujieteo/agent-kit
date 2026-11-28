@@ -49,17 +49,14 @@ def apm_home() -> Path:
     return Path(os.environ.get("APM_HOME") or xdg / "apm")
 
 
-def roots(home: Path | None = None, claude: Path | None = None,
-          codex: Path | None = None) -> dict[str, Path]:
-    """The three folders that the install writes to, by short name.
+def roots(home: Path | None = None, codex: Path | None = None) -> dict[str, Path]:
+    """The two folders that the install writes to, by short name.
 
-    claude: $CLAUDE_CONFIG_DIR (apm writes rules/ and skills/ there)
     agents: ~/.agents (apm writes the Codex skills there; Codex reads them)
     codex:  $CODEX_HOME (agent-kit writes AGENTS.md there)
     """
     h = home or HOME
-    return {"claude": claude or claude_dir(), "agents": h / ".agents",
-            "codex": codex or codex_dir()}
+    return {"agents": h / ".agents", "codex": codex or codex_dir()}
 
 
 def sha256(path: Path) -> str:
