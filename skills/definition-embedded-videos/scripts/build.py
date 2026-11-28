@@ -922,9 +922,6 @@ def for_voice(text, G):
 
 # ---------------------------------------------------------------- lint
 
-BE = r"\b(?:is|are|was|were|be|been|being)\b"
-
-
 VAGUE = re.compile(r"\b(?:like|such as|kind of|sort of|roughly|loosely|more or less|in a way|special(?! relativity| linear| orthogonal| unitary| fib| case)|things?|"
                    r"something|somehow|measures how|behaves like|tells you|in the role of)\b", re.I)
 
@@ -970,8 +967,6 @@ def lint_glossary(G):
         m = VAGUE.search(def_plain(d + " " + (e.short or "")))
         if m:
             warns.append(f"{tag}: '{m.group(0)}' is a sign of a loose description. Give the exact definition.")
-        if re.search(BE + r"\s+\w+ing\b", d):
-            warns.append(f"{tag}: '-ing' verb form after 'be'. STE uses simple tenses.")
 
     state = {}                                       # a definition must not come back to its own term
 

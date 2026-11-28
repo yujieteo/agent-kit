@@ -79,7 +79,7 @@
           src = pkgs.lib.fileset.toSource {
             root = ./.;
             fileset = pkgs.lib.fileset.unions [
-              ./kit ./skills ./.apm ./agents ./apm.yml ./hashes.json ./inventory.tsv
+              ./kit ./skills ./.apm ./agents ./apm.yml ./hashes.json
             ];
           };
           agent-kit = pkgs.writeShellApplication {

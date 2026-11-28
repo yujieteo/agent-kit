@@ -2,14 +2,13 @@
 
 What the user teaches Codex: four skills, the standing instructions, and
 Codex's own settings. One command installs them on any machine and checks them
-by SHA-256. The inventory, staleness, overlap, replay, and search commands
+by SHA-256. The staleness, overlap, replay, and search commands
 also inspect Claude Code's config and logs where present.
 
 ```sh
 agent-kit install [--force] # apm install, Codex AGENTS.md, settings merge, then verify
 agent-kit verify         # live files against hashes.json, `apm audit --ci`, settings keys
 agent-kit lock [--check] # rebuild hashes.json in an empty home (or compare with it)
-agent-kit inventory      # sort every file of both config folders (inventory.tsv)
 agent-kit stale [--memory]
 agent-kit overlap [--installed]
 agent-kit replay cases|--agent claude|--agent codex|report
@@ -50,10 +49,7 @@ shows the installed copies are the ones in hashes.json.
 | Shared instructions | `.apm/instructions/standing.instructions.md` | `$CODEX_HOME/AGENTS.md` |
 | Codex settings | `agents/codex/config.toml` (declared keys) | merged into `$CODEX_HOME/config.toml` |
 
-`inventory.tsv` sorts every top-level entry of both config folders into
-four kinds: written by the user (here), memory (backup), session logs
-(backup), and owned by the app (left alone). Memory and logs go to restic
-through the dotfiles (`users/yj/backup.nix`), not into this repository.
+Memory and session logs go to restic through the dotfiles (`users/yj/backup.nix`), not into this repository.
 
 Sandbox rules are not here. The sandbox-exec profile is dotfiles PR 303;
 only Codex's own `sandbox_mode` key is in `agents/codex/config.toml`.

@@ -2,7 +2,7 @@
 
 ## Definitions: the exact one, in simple sentences
 
-A definition here is the definition that a textbook or the source gives. It is complete and correct. A mathematician must be able to use it in a proof. ASD-STE100 controls the form of the sentence. It does not permit you to change the meaning.
+A definition here is the definition that a textbook or the source gives. It is complete and correct. A mathematician must be able to use it in a proof. Keep the sentence form plain and clear without changing the meaning.
 
 The test: from the definition alone, can the reader decide whether a given object is one? "A space that looks flat near each point" fails. "A topological space in which each point has a neighbourhood homeomorphic to an open subset of n-dimensional real space" passes.
 
@@ -28,13 +28,13 @@ Rules:
 - **A phrase with no formal definition** ("the spectral paradigm", "quantum gravity"): say exactly what the phrase refers to. Do not invent a formal definition.
 - **If you do not know the exact definition, look it up.** Do not guess and do not write a loose one. List in your report each definition that you could not confirm.
 
-Form (ASD-STE100):
+Form:
 
 - 40 spoken words or fewer, and 25 or fewer where the definition permits. One sentence part, no full stop. If the exact definition needs more words, move one part of it into a term of its own.
 - **An expression is an equation, not words.** Write each formula, each equation and each letter that stands for a mathematical object as TeX between `$`, in the source's notation: "the set of complex numbers `$\lambda$` for which `$T - \lambda$` has no bounded inverse", "the number `$S(\rho) = -\mathrm{Tr}(\rho \log \rho)$[[S of rho equals minus the trace of rho log rho]]`". The screen shows the equation. The voice says the words in `[[...]]`, or the build's own read-out when the formula is simple. "minus the trace of rho times the logarithm of rho" on the screen is hard to read: never write an expression out in words.
 - Prose stays prose. "a group in which `$ab = ba$` for all elements `$a$` and `$b$`" is right. A line of symbols with no words is not a definition that a listener can follow.
 - No brackets, no semicolons, no contractions, no "etc." in the words. In a formula, write `\mid` and not ` | `.
-- Simple present. Active voice where it does not make the definition longer. No "-ing" verb forms after "be".
+- Simple present and active voice where it does not make the definition longer.
 - One word for one thing in every definition. If you write "map", do not also write "mapping", "function" and "arrow" for the same thing.
 - Keep the articles. A plural form gets a plural definition.
 

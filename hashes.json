@@ -6,19 +6,19 @@
   "agents:skills/atomic-math-workbooks/references/formats.md": "sha256:a01ce5a4da85d3878eee28ea41e493b38da8a25455fcca80f88c17fcdf5c0e12",
   "agents:skills/atomic-math-workbooks/references/wbslides.sty": "sha256:61ed4f560109962ee9c65b52ac1938cf5e690e164d31f56010ccff6744c42d27",
   "agents:skills/deeper-task/SKILL.md": "sha256:283e63dafbd88bfd592a1b2d6bebf4a3351f7e06d8e2607e49f05ab9bc96eab4",
-  "agents:skills/definition-embedded-videos/SKILL.md": "sha256:4492b9464f115bcfd0d389a09335d5f8e6d893bce7dc68282fbdeaaa2de51eb6",
+  "agents:skills/definition-embedded-videos/SKILL.md": "sha256:9931cc4a45e21d6e88d1f320299db0a5ade0e24824d2781bf759f39b09bce384",
   "agents:skills/definition-embedded-videos/assets/fonts/ibm-plex-mono.woff2": "sha256:08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7",
   "agents:skills/definition-embedded-videos/assets/fonts/inter.woff2": "sha256:27e14bc616d9dba5a0a7480706e20ba1f7b10054617f4724de496e1eb202d888",
   "agents:skills/definition-embedded-videos/references/design.md": "sha256:868dcf01eee007e740ae028368443dcc408be38c442552ad5b6d12fa97c30706",
   "agents:skills/definition-embedded-videos/references/format.md": "sha256:ddd2239f2df8d10aad2fa29866b6ac4b2598d155670a3865f398a09b52bf9860",
-  "agents:skills/definition-embedded-videos/references/writing.md": "sha256:1b61ecc5a40df394bf66d53fa98798be227c6736b1eb4931838d467f1f6b3ef0",
-  "agents:skills/definition-embedded-videos/scripts/build.py": "sha256:2f852bb815284b83e37aa9150b427914af78bca42d8a03e8ad0339685ac0f603",
+  "agents:skills/definition-embedded-videos/references/writing.md": "sha256:17c340dcf986cc1fb6cb33e80fe0df7980443030679f7263416a61e757d9bfea",
+  "agents:skills/definition-embedded-videos/scripts/build.py": "sha256:56d323f2947e67a2ba4b6fc3a0672791afc5bfb0c2d2456d03e96f1122f8cc58",
   "agents:skills/definition-embedded-videos/scripts/frame.html": "sha256:48449fa93f659b87801466e803b7ffbf6cabf769e9eb7fd88a42d38d80024132",
   "agents:skills/definition-embedded-videos/scripts/prepare.py": "sha256:edf57de19e8278a03eaffc8bdd1cd5f8dd4bab4869ff33fa4548d95f1038ea8f",
   "agents:skills/definition-embedded-videos/scripts/render.js": "sha256:027f16cc98ceb350c7996c87875baeb46f448beec9e7ff9145d21607fa97ced8",
   "agents:skills/definition-embedded-videos/scripts/tts_phonon.py": "sha256:0287e8d8728f0dea52aea824f1432ace6f1a470ed0b0c01d132bf1a31dc82dee",
   "agents:skills/narrative-definition-videos/SKILL.md": "sha256:4c2be8a108a2bbc9293f981d4046b056711faf6efb7040b8d4a54c3181cf961a",
   "agents:skills/narrative-definition-videos/references/narrative.md": "sha256:68c78b15257d8073cc76c6ff00717797a0e4fadbf6c024aadd5ea04a80d2fe61",
-  "codex:AGENTS.md": "sha256:8b12f0c55da7c2bde602e9c144a73c8a3688cbd8461cec4f39b42ae2cc9be3b6"
+  "codex:AGENTS.md": "sha256:497bf6ba9d891777f6e00e2fffe853c2e564e7907e90ddd3e9258d8cd23d3742"
  }
 }

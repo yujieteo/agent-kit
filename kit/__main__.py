@@ -10,7 +10,6 @@ USAGE = """agent-kit COMMAND
                       (--force replaces skill copies that were there before the first install)
   verify              the installed files against hashes.json, apm audit --ci, the settings keys
   lock [--check]      install into an empty home and write (or compare) hashes.json
-  inventory [--show]  each entry of both agent folders is in inventory.tsv
   stale [--memory]    names in the rules and skills that do not exist (exit 1);
                       --memory also reports dated memory records that are out of date (exit 0)
   overlap [--installed]  skill-reach overlap of the skill descriptions, red over the limits;
@@ -46,9 +45,6 @@ def main() -> int:
     if cmd == "lock":
         from .install import cmd_lock
         return cmd_lock("--check" in a)
-    if cmd == "inventory":
-        from .inventory import cmd_inventory
-        return cmd_inventory("--show" in a)
     if cmd == "stale":
         from .stale import cmd_stale
         return cmd_stale(a[1:])
