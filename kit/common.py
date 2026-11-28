@@ -21,12 +21,12 @@ def repo_skills() -> list[str]:
 # app notices, a /compact or /clear command, and the "Continue" that a resumed
 # session sends. kit/replay.py and kit/search.py both skip it.
 NOT_REQUESTS = ("<local-command", "<command-name>/compact", "<command-name>/clear", "Caveat:",
-                "[Request interrupted", "<task-notification>", "<system-reminder>", "Continue")
+                "[Request interrupted", "<task-notification>", "<system-reminder>")
 
 
 def not_a_request(text: str) -> bool:
     """True when a Claude Code user turn is app text, not a request the user typed."""
-    return text.startswith(NOT_REQUESTS)
+    return text.startswith(NOT_REQUESTS) or text.strip() == "Continue"
 
 
 def cache_dir() -> Path:

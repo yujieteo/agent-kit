@@ -142,6 +142,8 @@ def codex_cases():
             yield {"source": "codex", "session": sid, "request": request, "label": label or "none"}
     # Threads that live only in the thread store.
     src = codex_dir() / "thread_history_1.sqlite"
+    if not src.exists():
+        return
     with tempfile.TemporaryDirectory() as t:
         db = sqlite3.connect(copy_sqlite(src, Path(t)))
         threads: dict[str, dict] = {}
@@ -317,6 +319,7 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
     scratch home per condition and worker.
     """
     from concurrent.futures import ThreadPoolExecutor
+    import queue
     revs = ab_revisions(before)
     done = set()
     if out.exists():
@@ -324,7 +327,9 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
                 if "error" not in r}
     with tempfile.TemporaryDirectory(prefix="agent-kit-ab-") as base:
         trees = {"before": skills_at(before, Path(base) / "before"), "after": REPO / "skills"}
-        swap = [n for n in MINE if (trees["before"] / n / "SKILL.md").read_bytes() != (REPO / "skills" / n / "SKILL.md").read_bytes()]
+        swap = [n for n in MINE
+                if (trees["before"] / n / "SKILL.md").exists()
+                and (trees["before"] / n / "SKILL.md").read_bytes() != (REPO / "skills" / n / "SKILL.md").read_bytes()]
         live = {n: claude_dir() / "skills" / n / "SKILL.md" for n in swap} if agent == "claude" else {}
         saved = {n: f.read_bytes() for n, f in live.items()}
         if live:  # put the files back on `kill` too
@@ -346,12 +351,20 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
                         for n, f in live.items():
                             f.write_bytes((trees[cond] / n / "SKILL.md").read_bytes())
 
-                    def go(c, w, cond=cond):  # w: the worker, which owns one Codex home per condition
+                    slots: queue.Queue[int] = queue.Queue()
+                    for w in range(workers):
+                        slots.put(w)
+
+                    def go(c, cond=cond):  # each in-flight task checks out its own Codex home
                         if agent == "claude":
                             return run_claude(c["request"], model)
-                        return run_codex(c["request"], *homes[cond, w])
+                        w = slots.get()
+                        try:
+                            return run_codex(c["request"], *homes[cond, w])
+                        finally:
+                            slots.put(w)
                     with ThreadPoolExecutor(workers) as ex:
-                        res = list(ex.map(lambda cw: go(*cw), [(c, k % workers) for k, c in enumerate(todo)]))
+                        res = list(ex.map(go, todo))
                     with out.open("a") as fh:
                         for c, r in zip(todo, res):
                             fh.write(json.dumps({**c, "agent": agent, "run": i, "condition": cond, **revs, **r},
@@ -383,7 +396,7 @@ def cmd_replay(args: list[str]) -> int:
     cases = [json.loads(l) for l in (OUT / "cases.jsonl").read_text().splitlines()]
     out = OUT / f"{agent}.jsonl"
     done = {json.loads(l)["session"] for l in out.read_text().splitlines()} if out.exists() else set()
-    auth_before = (codex_dir() / "auth.json").read_bytes()
+    auth_before = (codex_dir() / "auth.json").read_bytes() if agent == "codex" else None
     with tempfile.TemporaryDirectory(prefix="agent-kit-codex-") as base:
         home = cx = None
         if agent == "codex":
@@ -465,19 +478,15 @@ def report_ab(ans: dict[str, str]) -> None:
                 say(f"      {cond:6} {cnt(cond):70} " + (f"right {wilson_text(k, len(d[cond]))}" if a else ""))
             if a:
                 runs = d["before"].keys() & d["after"].keys()
-                b += sum(right(d["after"][i], a) and not right(d["before"][i], a) for i in runs)
-                c += sum(right(d["before"][i], a) and not right(d["after"][i], a) for i in runs)
-                diffs.append(sum(right(d["after"][i], a) for i in runs) / len(runs)
-                             - sum(right(d["before"][i], a) for i in runs) / len(runs))
+                if runs:
+                    b += sum(right(d["after"][i], a) and not right(d["before"][i], a) for i in runs)
+                    c += sum(right(d["before"][i], a) and not right(d["after"][i], a) for i in runs)
+                    diffs.append(sum(right(d["after"][i], a) for i in runs) / len(runs)
+                                 - sum(right(d["before"][i], a) for i in runs) / len(runs))
         say(f"  paired runs where only 'after' was right: {b}; only 'before': {c}; exact McNemar p = {mcnemar(b, c):.4f}")
+        min_p = min(1.0, 2 / 2 ** len(diffs))
         say(f"  sign-flip test over {len(diffs)} marked requests: p = {sign_flip(diffs):.4f} "
-            f"(smallest possible {2 / 2 ** len(diffs):.4f})")
-        for sid, d in by.items():
-            if "1512.06410" in d["req"] and ans.get(sid):
-                a, runs = ans[sid], d["before"].keys() & d["after"].keys()
-                b1 = sum(right(d["after"][i], a) and not right(d["before"][i], a) for i in runs)
-                c1 = sum(right(d["before"][i], a) and not right(d["after"][i], a) for i in runs)
-                say(f"  the request the change was made for: only after {b1}, only before {c1}, p = {mcnemar(b1, c1):.4f}")
+            f"(smallest possible {min_p:.4f})")
 
 
 def cmd_report() -> int:

@@ -31,10 +31,8 @@
 \tl_new:N \g_wb_round_tl
 \tl_new:N \g_wb_notation_tl
 \int_new:N \l_wb_from_int
-\int_new:N \l_wb_count_int
 
 \NewDocumentCommand \deck {m} { \tl_gset:Nn \g_wb_deck_tl {#1} }
-% \round{title}{notation shown in margin on every slide of the round}
 \tl_new:N \g_wb_goal_tl
 % \round{title}{one-line goal}{notation}
 \NewDocumentCommand \round {m +m +m}
@@ -127,7 +125,7 @@
  }
 
 % current line boxes
-\cs_new_protected:Npn \wb_current:nnnn #1#2#3#4 % instruction, expr-or-blank, tag, filled?
+\cs_new_protected:Npn \wb_current:nnn #1#2#3 % instruction, expr-or-blank, tag
  {
   \vspace{1.2ex}
   \tl_if_blank:nF {#1} { {\color{mid}\small #1}\par\vspace{0.8ex} }
@@ -145,7 +143,7 @@
 \NewDocumentCommand \given {m m +m +m}
  {
   \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
-   { \wb_context: \wb_current:nnnn { Copy~this~line. } {#1} {#2} {} }
+   { \wb_context: \wb_current:nnn { Copy~this~line. } {#1} {#2} }
    {#3} {#4}
   \wb_store:nn {#1} {#2}
  }
@@ -153,10 +151,10 @@
 \NewDocumentCommand \step {m m m +m +m}
  {
   \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
-   { \wb_context: \wb_current:nnnn {#1} { \wb_blank: } {#3} {} }
+   { \wb_context: \wb_current:nnn {#1} { \wb_blank: } {#3} }
    {#4} {#5}
   \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
-   { \wb_context: \wb_current:nnnn {#1} {#2} {#3} {} }
+   { \wb_context: \wb_current:nnn {#1} {#2} {#3} }
    {#4} {#5}
   \wb_store:nn {#2} {#3}
  }
@@ -164,13 +162,13 @@
 \NewDocumentCommand \choosestep {m m m +m +m}
  {
   \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
-   { \wb_context: \wb_current:nnnn {#1} { \wb_blank: } { \color{faint}which~move? } {} }
+   { \wb_context: \wb_current:nnn {#1} { \wb_blank: } { \color{faint}which~move? } }
    {} {#5}
   \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
-   { \wb_context: \wb_current:nnnn {#1} { \wb_blank: } {#3} {} }
+   { \wb_context: \wb_current:nnn {#1} { \wb_blank: } {#3} }
    {#4} {#5}
   \wb_slide:nnnn { \wb_lines_label:n { \int_eval:n { \g_wb_n_int + 1 } } }
-   { \wb_context: \wb_current:nnnn {#1} {#2} {#3} {} }
+   { \wb_context: \wb_current:nnn {#1} {#2} {#3} }
    {#4} {#5}
   \wb_store:nn {#2} {#3}
  }
@@ -199,7 +197,6 @@
 % whole chain, n lines per slide
 \NewDocumentCommand \fullchain {O{9}}
  {
-  \int_set:Nn \l_wb_count_int { 0 }
   \int_step_inline:nn { \g_wb_n_int }
    {
     \int_compare:nNnT { \int_mod:nn { ##1 - 1 } {#1} } = { 0 }
