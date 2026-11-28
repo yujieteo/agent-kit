@@ -46,12 +46,13 @@ CLAUDE_COMMANDS = {
 
 def skill_names() -> set[str]:
     names = set(repo_skills())
-    roots = [claude_dir() / "skills", claude_dir() / "skills" / "synced", HOME / ".agents/skills",
-             codex_dir() / "skills", codex_dir() / "skills" / ".system",
-             claude_dir() / "plugins", codex_dir() / "plugins"]
+    roots = [claude_dir() / "skills", HOME / ".agents/skills",
+             codex_dir() / "skills", claude_dir() / "plugins", codex_dir() / "plugins"]
     for r in roots:
         if r.is_dir():
             for f in r.rglob("SKILL.md"):
+                if ".trash" in f.parts:
+                    continue
                 names.add(f.parent.name)
                 m = re.search(r"^name:\s*['\"]?([\w:.-]+)", f.read_text(errors="replace")[:500], re.M)
                 if m:
@@ -151,7 +152,7 @@ def check_text(text: str, base: Path, skills: set[str]) -> list[str]:
             if not (base / c).exists() and not (REPO / c).exists():
                 bad.append(f"path {c} does not exist (next to {base.name}/)")
     for c in sorted(commands_in(text)):
-        if c in BUILTINS or c.startswith(("./", "/")) and (base / c).exists():
+        if c in BUILTINS:
             continue
         if not shutil.which(c) and not (base / c).exists():
             bad.append(f"command {c} is not on PATH")

@@ -74,7 +74,7 @@ being below between both but by can did do does doing down during each few for f
 have having he her here hers him his how i if in into is it its itself just me more most my no nor not
 now of off on once only or other our out over own same she should so some such than that the their
 them then there these they this those through to too under until up very was we were what when where
-which while who whom why will with you your yours one also each the via per use used""".split())
+which while who whom why will with you your yours one also the via per use used""".split())
 
 
 def text_of(content) -> str:
@@ -213,7 +213,7 @@ def build_index(path: Path = DB) -> Counter:
 
 
 def words(text: str) -> list[str]:
-    return [w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 2 and w not in STOP and not w.isdigit() or (w.isdigit() and len(w) >= 3)]
+    return [w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 2 and w not in STOP]
 
 
 def make_query(db: sqlite3.Connection, text: str, terms: int = 40) -> str:
@@ -626,7 +626,7 @@ def pi_rank_all(checkout: Path, root: Path, cases: list[dict], exclude: set[str]
     (it filters by session start). Hits come newest first (its order); a session ranks by its
     first hit. Hits from after the case, and the searching session, are then dropped.
     """
-    jobs = [{"query": "/" + "|".join(re.escape(p).replace("/", "\\/") for p in patterns_of(c)) + "/i",
+    jobs = [{"query": ("/" + "|".join(re.escape(p).replace("/", "\\/") for p in pats) + "/i") if (pats := patterns_of(c)) else "/(?!) /",
              "until": c["ts"]} for c in cases]
     with tempfile.TemporaryDirectory(prefix="agent-kit-pi-") as t:
         (Path(t) / "jobs.json").write_text(json.dumps(jobs))
@@ -704,7 +704,7 @@ def cmd_proof(db: sqlite3.Connection, args: list[str]) -> int:
         top = max(res[r]["mrr"] for r in RULES)
         chosen = next(r for r in RULES if res[r]["mrr"] == top)
         freeze = {"chosen": chosen, "cut": cut, "exclude": sorted(exclude), "sha256": digest(),
-                  "older": {r: {k: v for k, v in s.items() if k != "ranks"} | {"ranks": s["ranks"]} for r, s in res.items()}}
+                  "older": res}
         (PROOF / "freeze.json").write_text(json.dumps(freeze, indent=1))
         for r in RULES:
             say(f"  {r:8} recall@5 {res[r]['recall5']:.2f}  MRR {res[r]['mrr']:.2f}  ranks {res[r]['ranks']}")
@@ -742,8 +742,16 @@ def fmt(r) -> str:
 
 def cmd_search(cmd: str, args: list[str]) -> int:
     exclude = set()
-    if "--exclude" in args:
-        exclude = set(args[args.index("--exclude") + 1].split(","))
+    query_words = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--exclude" and i + 1 < len(args):
+            exclude.update(x for x in args[i + 1].split(",") if x)
+            i += 2
+            continue
+        if not args[i].startswith("--"):
+            query_words.append(args[i])
+        i += 1
     if cmd == "index" or "--reindex" in args or not DB.exists():
         n = build_index()
         say(f"indexed {sum(n.values())} rows: " + ", ".join(f"{k} {v}" for k, v in sorted(n.items())))
@@ -751,7 +759,7 @@ def cmd_search(cmd: str, args: list[str]) -> int:
             return 0
     db = sqlite3.connect(DB)
     if cmd == "search":
-        q = " ".join(a for a in args if not a.startswith("--") and a not in exclude)
+        q = " ".join(query_words)
         for s, sid, k, p in rank(db, q, exclude):
             say(f"{s:9.2f}  {k:15} {sid}  {p}")
         return 0

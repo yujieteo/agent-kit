@@ -683,7 +683,7 @@ def compose(b, G, say_memo, prev, helped=None, mem=None, ctx=None):
     if pos < len(b.raw):
         add_text(b.raw[pos:])
 
-    # what the listener needs now: the definition (new or lost), a reminder (fading), or nothing (known)
+    # what the listener needs now: the definition (new), a reminder (fading or lost), or nothing (known)
     def state(e):
         return mem.state(G.family(e)) if mem else "new"
     own_words = {it[1].key for it in items if it[0] == "place" and it[2]}
@@ -955,7 +955,8 @@ def lint_glossary(G):
         n = len(def_say(d, "x x x").split())
         if n > 40:
             errs.append(f"{tag}: {n} words. The limit for a definition is 40: move a part into a term of its own.")
-        if re.search(r"[;()]", def_plain(d)) or re.search(r"\w'(?:s\b)?(?:t|re|ll|ve)\b", d):
+        plain = def_plain(d)
+        if re.search(r"[;()]", plain) or re.search(r"\b\w+(?:n't|'(?:re|ll|ve|m|d))\b", plain, re.I):
             errs.append(f"{tag}: no semicolons, brackets or contractions in a definition (outside formulas).")
         if e.short:
             ns = len(def_say(e.short, "x x x").split())
@@ -1271,7 +1272,7 @@ def build_chapter(path, G, a, work):
         print(f"  {path.name}: {len(crowded)} beats still have more than {SOFT_TERMS} terms after the automatic split; "
               f"{sum(n > HARD_TERMS for n, _ in crowded)} have more than {HARD_TERMS} and repeat colours. "
               f"Break those lines by hand. Worst lines: {worst}")
-    failed = any(not p.startswith("warning") for _, p in problems)
+    failed = bool(problems)
     if failed and not a.lint:
         die("fix the beats above")
     if a.lint:
@@ -1442,7 +1443,11 @@ def main():
     if not files:
         die("no .beats files")
     auto = a.motion is None
+    base_readout, base_font, base_say = set(READOUT), set(FONT), dict(SAY)
     for f in files:
+        READOUT.clear(); READOUT.update(base_readout)
+        FONT.clear(); FONT.update(base_font)
+        SAY.clear(); SAY.update(base_say)
         G = Glossary(work / "glossary.txt", *own_files(work, f, ".glossary.txt"))   # shared, then this file's own
         errs, warns = lint_glossary(G)
         for w in warns:

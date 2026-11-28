@@ -13,7 +13,7 @@ import argparse, re, sys, unicodedata
 from collections import Counter
 from pathlib import Path
 
-MATH_ENVS = "equation|align|eqnarray|gather|multline|displaymath|flalign|alignat|eqnarray"
+MATH_ENVS = "equation|align|eqnarray|gather|multline|displaymath|flalign|alignat"
 MULTIROW = {"align", "eqnarray", "gather", "alignat", "flalign"}
 THEOREMISH = {"thm": "Theorem", "theorem": "Theorem", "lem": "Lemma", "lemma": "Lemma", "prop": "Proposition",
               "proposition": "Proposition", "cor": "Corollary", "corollary": "Corollary", "defn": "Definition",
@@ -75,7 +75,8 @@ def load(path, seen=()):
     s = re.sub(r"\\num\{(\d+)\}", lambda m: m.group(1) if len(m.group(1)) < 5 else "{,}".join(re.findall(r"\d{1,3}(?=(?:\d{3})*$)", m.group(1))), s)
 
     def inp(m):
-        f = (path.parent / m.group(1)).with_suffix(".tex") if not m.group(1).endswith(".tex") else path.parent / m.group(1)
+        name = m.group(1)
+        f = path.parent / (name if name.endswith(".tex") else name + ".tex")
         return load(f, seen + (path,)) if f.exists() and f not in seen else ""
     return re.sub(r"\\(?:input|include)\{([^}]+)\}", inp, s)
 
@@ -422,9 +423,13 @@ def from_text(path, source):
             continue
         lines.append("")
         if chunk.startswith("#"):
-            level, _, t = chunk.partition(" ")
+            first, _, body = chunk.partition("\n")
+            level, _, t = first.partition(" ")
             lines.append(("# " if level == "#" and not any(l.startswith("# ") for l in lines) else "## ") + t.strip())
-            continue
+            chunk = body.strip()
+            if not chunk:
+                continue
+            lines.append("")
         held = []
 
         def keep(m):
@@ -435,7 +440,8 @@ def from_text(path, source):
             lines.append(re.sub(r"\x00[DI](\d+)\x00", lambda m: re.sub(r"\s+", " ", held[int(m.group(1))]), sent))
         math += len(held)
     if source:
-        lines.insert(1, "@source " + source)
+        idx = next((i + 1 for i, l in enumerate(lines) if l.startswith("# ")), 0)
+        lines.insert(idx, "@source " + source)
     return lines, Counter(), math
 
 
