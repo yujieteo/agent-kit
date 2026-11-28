@@ -12,7 +12,8 @@ It uses the other skill's machinery unchanged. Read these before you start, in t
 1. `../definition-embedded-videos/SKILL.md` — the build, the memory model, the checks.
 2. `../definition-embedded-videos/references/writing.md` — exact definitions. They are as strict here as there: a narrative video is short, not loose.
 3. `../definition-embedded-videos/references/format.md` — the file formats and the marks.
-4. [references/narrative.md](references/narrative.md) — the story structure, the time budget and the cuts. This is the part that is new.
+4. `../definition-embedded-videos/references/design.md` — the colour tokens, typography and motion rules.
+5. [references/narrative.md](references/narrative.md) — the story structure, the time budget and the cuts. This is the part that is new.
 
 The scripts are `../definition-embedded-videos/scripts/build.py` (and its `frame.html`, `render.js`, voice worker). Do not copy them; call them from there. `prepare.py` is not used: you write the beats yourself.
 
@@ -23,7 +24,7 @@ The scripts are `../definition-embedded-videos/scripts/build.py` (and its `frame
 3. **Write the beats** ([narrative](references/narrative.md), "Write the script"): numbered acts as `##` headings, one short sentence per line, the paper's own formulas in TeX with spoken forms, theorems stated in full. About 1100 to 1300 words of your own.
 4. **Write the glossary**: only the words of the main statements, the central objects and the proof steps. Exact definitions, as in `writing.md`. If an exact glossary already exists for this paper or its field, copy it into the folder and prune it; never reuse a glossary written in plain words ("a rule", "like a mirror"), which some old folders hold.
 5. **Lint** with `python3 ../definition-embedded-videos/scripts/build.py WORK --lint --formulas`. Fix the errors, fill `NAME.say.todo.txt` into `01.say.txt`, and read the spoken-word count. Cut to the budget ([narrative](references/narrative.md), "Fit 15 minutes").
-6. **Finalise**: write `NAME.context.txt` from `NAME.context.todo.txt`, with short meanings (first meaning about 10 to 18 words, reminder 4 to 8). Lint again until no todo file is left and the count is about 2400 spoken words.
+6. **Finalise**: write `NAME.context.txt` from `NAME.context.todo.txt`, with short meanings (first meaning about 10 to 18 words, reminder 4 to 8). Lint again until no todo file is left and the count is about 2350 spoken words.
 7. **Read the narration** as the voice says it (the print-out in the other skill's "Check") and fix what reads badly ([narrative](references/narrative.md), "Read it once").
 8. **Build** with `build.py WORK`. Measure the real length with `ffprobe` on `out/NAME.m4a`; if it is more than a minute off 15, cut or add and rebuild (the rebuild is fast: audio is cached by content).
 9. **Look at stills** from a theorem beat, a proof beat, a "Words in the meanings" page and a heading before you say it is done. Send the `.mp4` to the user.

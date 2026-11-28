@@ -32,9 +32,9 @@ Produce a PDF explainer in slide form, one move per slide. The reader keeps a se
 - **Leave the unchanged terms visible.** Show exactly what replaced the changing term. Name a long common expression once, locally, and restore it when it matters. Preserve signs, degree, and operator order.
 - **Use one mathematical decision per line.** Expand one product, insert one sign, match one coefficient, or cancel one pair.
 - **Separate choosing from applying.** Where the choice is the difficulty, the first blank asks for the rule and the second for the result. Where the choice is obvious, use one blank.
-- **Reintroduce notation where it is needed.** Define every symbol before first use. Put a short reminder beside later uses, such as (r_i) = power of ħ at vertex (i), at page turns, and wherever a letter changes meaning.
+- **Reintroduce notation where it is needed.** Define every symbol before first use. Put a short reminder beside later uses, such as `$r_i$` = power of ħ at vertex `$i$`, at page turns, and wherever a letter changes meaning.
 
-For example, to pass an even operator (A) through a square, expand ([D,A^2]) into (DA^2-A^2D). The first blank asks what to insert; the answer is the zero pair (-ADA+ADA), because it exposes the two places where (D) crosses (A). Factor the two pairs on separate lines before naming the commutators. Even degree fixes the sign in the graded commutator.
+For example, to pass an even operator `$A$` through a square, expand `$[D,A^2]$` into `$DA^2-A^2D$`. The first blank asks what to insert; the answer is the zero pair `$-ADA+ADA$`, because it exposes the two places where `$D$` crosses `$A$`. Factor the two pairs on separate lines before naming the commutators. Even degree fixes the sign in the graded commutator.
 
 ## Sequence for speed
 
@@ -49,4 +49,4 @@ For example, to pass an even operator (A) through a square, expand ([D,A^2]) int
 - A worked line gets one slide: the reader copies it. A blank gets two slides: the first shows the line number, the instruction, and the rule tag; the next slide shows the same with the line filled in. The reader says the line, advances, checks, and copies. Where the choice is the difficulty, hide the tag too, and reveal it on its own slide before the line.
 - Do not leave writing space; the reader writes on their own sheet. End the round on the line that reaches the goal.
 - Open with one slide: source with exact anchor, target, conventions, and how to use the deck. Close with the whole chain on as few slides as possible, so the reader can check their sheet.
-- Follow [Print](references/formats.md) for type, layout, and the friction checks.
+- Follow [Slides](references/formats.md) for type, layout, and the friction checks.
