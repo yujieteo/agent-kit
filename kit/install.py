@@ -66,7 +66,7 @@ def apm_install(env: dict[str, str], source: Path, force: bool = False) -> None:
     # apm adopts a skill copy that was there before the first install without a
     # record that it wrote it, and later refuses to replace it (measured);
     # --force lets it, once.
-    r = run([apm_bin(), "install", "-g", "-t", "claude,codex", *(["--force"] if force else []), str(source)], env=env,
+    r = run([apm_bin(), "install", "-g", "-t", "codex", *(["--force"] if force else []), str(source)], env=env,
             capture_output=True)
     if r.returncode:
         raise SystemExit("apm install failed:\n" + r.stdout + r.stderr)
@@ -76,20 +76,15 @@ def owned_files(rts: dict[str, Path]) -> dict[str, Path]:
     """The installed files of this repository, keyed root:relative-path."""
     out: dict[str, Path] = {}
     skills = repo_skills()
-    rules = sorted(f.name.removesuffix(".instructions.md") + ".md"
-                   for f in (REPO / ".apm" / "instructions").glob("*.instructions.md"))
-    for root in ("claude", "agents"):
-        for s in skills:
-            d = rts[root] / "skills" / s
-            if d.is_dir():
-                for f in sorted(d.rglob("*")):
-                    # Files the system or a skill's own run makes are not the user's.
-                    if f.is_file() and f.name != ".DS_Store" and "__pycache__" not in f.parts:
-                        out[f"{root}:{f.relative_to(rts[root])}"] = f
-            else:
-                out[f"{root}:skills/{s}/SKILL.md"] = d / "SKILL.md"  # missing: verify says so
-    for r in rules:
-        out[f"claude:rules/{r}"] = rts["claude"] / "rules" / r
+    for s in skills:
+        d = rts["agents"] / "skills" / s
+        if d.is_dir():
+            for f in sorted(d.rglob("*")):
+                # Files the system or a skill's own run makes are not the user's.
+                if f.is_file() and f.name != ".DS_Store" and "__pycache__" not in f.parts:
+                    out[f"agents:{f.relative_to(rts['agents'])}"] = f
+        else:
+            out[f"agents:skills/{s}/SKILL.md"] = d / "SKILL.md"  # missing: verify says so
     out["codex:AGENTS.md"] = rts["codex"] / "AGENTS.md"
     return out
 
@@ -136,49 +131,6 @@ def flat(d: dict, pre: str = "") -> dict[str, object]:
     return out
 
 
-def merge_settings(have: dict, want: dict) -> None:
-    """Put each declared key of want into have, and keep every other key of have.
-
-    A table is merged key by key. A list keeps the items already there and gets
-    each declared item it lacks, at the end, so the user's own permission rules
-    stay. Any other value is replaced.
-    """
-    for k, v in want.items():
-        if isinstance(v, dict):
-            if not isinstance(have.get(k), dict):
-                have[k] = {}
-            merge_settings(have[k], v)
-        elif isinstance(v, list) and isinstance(have.get(k), list):
-            have[k] += [x for x in v if x not in have[k]]
-        else:
-            have[k] = list(v) if isinstance(v, list) else v
-
-
-def settings_gaps(have: dict, want: dict) -> list[str]:
-    """The declared keys that have does not hold: a wrong value, or list items it lacks."""
-    bad = []
-    have_f = flat(have)
-    for k, v in flat(want).items():
-        got = have_f.get(k)
-        if isinstance(v, list) and isinstance(got, list):
-            lacks = [x for x in v if x not in got]
-            if lacks:
-                bad.append(f"{k} lacks {lacks!r}")
-        elif got != v:
-            bad.append(f"{k} is {got!r}, not {v!r}")
-    return bad
-
-
-def claude_settings_merge(path: Path) -> None:
-    want = json.loads((REPO / "agents/claude/settings.json").read_text())
-    have = json.loads(path.read_text()) if path.exists() else {}
-    merge_settings(have, want)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.agent-kit")
-    tmp.write_text(json.dumps(have, indent=2, ensure_ascii=False) + "\n")
-    tmp.replace(path)
-
-
 def toml_value(v: object) -> str:
     if isinstance(v, bool):
         return "true" if v else "false"
@@ -217,16 +169,11 @@ def codex_config_merge(path: Path) -> None:
     path.write_text("\n".join(lines) + "\n")
 
 
-def settings_problems(claude: Path, codex: Path) -> list[str]:
-    bad = []
-    p = claude / "settings.json"
-    have = json.loads(p.read_text()) if p.exists() else {}
-    bad += [f"{p}: {g}" for g in settings_gaps(have, json.loads((REPO / "agents/claude/settings.json").read_text()))]
+def settings_problems(codex: Path) -> list[str]:
     want = flat(tomllib.loads((REPO / "agents/codex/config.toml").read_text()))
     p = codex / "config.toml"
     have = flat(tomllib.loads(p.read_text())) if p.exists() else {}
-    bad += [f"{p}: {k} is {have.get(k)!r}, not {v!r}" for k, v in want.items() if have.get(k) != v]
-    return bad
+    return [f"{p}: {k} is {have.get(k)!r}, not {v!r}" for k, v in want.items() if have.get(k) != v]
 
 
 # ---- install and verify -----------------------------------------------------
@@ -236,7 +183,6 @@ def cmd_install(force: bool = False) -> int:
     apm.mkdir(parents=True, exist_ok=True)
     apm_install(apm_env(HOME, claude, codex, apm), REPO, force)
     write_agents_md(codex)
-    claude_settings_merge(claude / "settings.json")
     codex_config_merge(codex / "config.toml")
     return cmd_verify()
 
@@ -263,7 +209,7 @@ def cmd_verify() -> int:
         if audit:
             drift = [l.strip() for l in (r.stdout + r.stderr).splitlines() if "hash-drift" in l or "[x]" in l]
             bad.append("apm audit --ci: exit %d: %s" % (audit, "; ".join(drift) or "see apm audit"))
-    bad += settings_problems(claude, codex)
+    bad += settings_problems(codex)
     for b in bad:
         say("FAIL " + b)
     say(f"verify: {'FAIL' if bad else 'PASS'} ({len(want)} files in hashes.json, apm audit exit {audit})")
