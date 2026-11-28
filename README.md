@@ -1,17 +1,17 @@
 # agent-kit
 
-What the user teaches Codex: four skills, the standing instructions, and
-Codex's own settings. One command installs them on any machine and checks them
-by SHA-256. The staleness, overlap, replay, and search commands
+What the user teaches coding agents: four skills and the standing instructions.
+One command installs the skills into `~/.agents/skills` on any machine and
+checks them by SHA-256. The staleness, overlap, replay, and search commands
 also inspect Claude Code's config and logs where present.
 
 ```sh
-agent-kit install [--force] # apm install, Codex AGENTS.md, settings merge, then verify
-agent-kit verify         # live files against hashes.json, `apm audit --ci`, settings keys
+agent-kit install [--force] # apm install (-t agent-skills), then verify
+agent-kit verify         # live files against hashes.json and `apm audit --ci`
 agent-kit lock [--check] # rebuild hashes.json in an empty home (or compare with it)
 agent-kit stale [--memory]
 agent-kit overlap [--installed]
-agent-kit replay cases|--agent claude|--agent codex|report
+agent-kit replay cases|--agent claude|report
 agent-kit index | search WORDS | search-proof cases|choose|score
 ```
 
@@ -45,26 +45,16 @@ shows the installed copies are the ones in hashes.json.
 
 | What | Source in this repository | Installed to |
 |---|---|---|
-| Skills (4) | `skills/` | `~/.agents/skills` (for Codex) |
-| Shared instructions | `.apm/instructions/standing.instructions.md` | `$CODEX_HOME/AGENTS.md` |
-| Codex settings | `agents/codex/config.toml` (declared keys) | merged into `$CODEX_HOME/config.toml` |
+| Skills (4) | `skills/` | `~/.agents/skills` |
 
 Memory and session logs go to restic through the dotfiles (`users/yj/backup.nix`), not into this repository.
 
-Sandbox rules are not here. The sandbox-exec profile is dotfiles PR 303;
-only Codex's own `sandbox_mode` key is in `agents/codex/config.toml`.
-
 ## Upstream projects: what was used and why
 
-- **microsoft/apm 0.37.0** installs the Codex skills (`-t codex`), and its
-  `apm audit --ci` catches an edited installed file. It puts Codex skills only in
-  `~/.agents/skills`, not in `$CODEX_HOME/skills` (measured). Codex reads
-  both folders (measured: it lists the four from `~/.agents/skills`, and past
-  sessions read `$CODEX_HOME/skills/atomic-math-workbooks`). `apm compile -g` never writes Codex's AGENTS.md (read in
-  the source: global discovery scans only `apm_modules/`), so agent-kit
-  writes it, and hashes it itself. apm fails on a read-only source folder
-  (measured), so the Nix wrapper gives it a copy, unless `AGENT_KIT_REPO`
-  names a clone.
+- **microsoft/apm 0.37.0** installs the skills (`-t agent-skills` into
+  `~/.agents/skills`), and its `apm audit --ci` catches an edited installed
+  file. apm fails on a read-only source folder (measured), so the Nix wrapper
+  gives it a copy, unless `AGENT_KIT_REPO` names a clone.
 - **google/skill-reach** measures overlap (`reach overlap --semantic`). Its
   replay (`reach eval`) cannot be used here. It has no Codex runtime. With
   config isolation on, Claude Code is not signed in. With isolation off, the
@@ -243,7 +233,7 @@ the records).
 Run every check with one command: `bash tests/check.sh`. It builds the
 flake's apm and skill-reach, runs each test script below and shellcheck, and
 exits 0 only when all of them pass. It does not touch the live agent folders
-(`~/.config/claude`, `~/.agents`, `~/.config/codex`).
+(`~/.config/claude`, `~/.agents`).
 
 After any edit under `skills/` or `.apm/`, run `python3 -m kit lock`, then
 `python3 -m kit lock --check`. The first command rewrites hashes.json; the
@@ -253,8 +243,8 @@ second confirms it matches the source.
 on this machine.
 
 `tests/install.sh` installs into a scratch home. It needs a clean pass, and a
-fail for each of three planted faults: an edited `~/.agents` copy, an edited
-Codex AGENTS.md, and an edited source with a stale hashes.json. `tests/checks.sh` does the same for the stale check (a
+fail for each of two planted faults: an edited `~/.agents` copy, and an edited
+source with a stale hashes.json. `tests/checks.sh` does the same for the stale check (a
 dead path in the rules, a dead path in a skill, a dead skill name) and the
 overlap check (a copied description). It also checks that `stale --memory`
 reports a dead path in a record, and does not report it in a sentence that

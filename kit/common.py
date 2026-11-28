@@ -38,10 +38,6 @@ def claude_dir() -> Path:
     return Path(os.environ.get("CLAUDE_CONFIG_DIR") or HOME / ".claude")
 
 
-def codex_dir() -> Path:
-    return Path(os.environ.get("CODEX_HOME") or HOME / ".codex")
-
-
 def apm_home() -> Path:
     # apm's own default is ~/.apm; agent-kit always passes APM_HOME to apm, so
     # the lock lives in the XDG data folder whether or not the shell sets it.
@@ -49,14 +45,13 @@ def apm_home() -> Path:
     return Path(os.environ.get("APM_HOME") or xdg / "apm")
 
 
-def roots(home: Path | None = None, codex: Path | None = None) -> dict[str, Path]:
-    """The two folders that the install writes to, by short name.
+def roots(home: Path | None = None) -> dict[str, Path]:
+    """The folder that the install writes to, by short name.
 
-    agents: ~/.agents (apm writes the Codex skills there; Codex reads them)
-    codex:  $CODEX_HOME (agent-kit writes AGENTS.md there)
+    agents: ~/.agents (apm writes the skills to ~/.agents/skills)
     """
     h = home or HOME
-    return {"agents": h / ".agents", "codex": codex or codex_dir()}
+    return {"agents": h / ".agents"}
 
 
 def sha256(path: Path) -> str:
@@ -65,19 +60,6 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return "sha256:" + h.hexdigest()
-
-
-def copy_sqlite(src: Path, dest: Path) -> Path:
-    """Copy a live SQLite file with its -wal and -shm into dest; return the copy.
-
-    The copy is what gets opened, so the write-ahead log is read and the app's
-    own file is never locked.
-    """
-    for suffix in ("", "-wal", "-shm"):
-        s = Path(str(src) + suffix)
-        if s.exists():
-            shutil.copy2(s, dest / (src.name + suffix))
-    return dest / src.name
 
 
 def find_tool(name: str, env: str, label: str | None = None) -> str:

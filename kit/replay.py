@@ -56,7 +56,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from .common import (REPO, cache_dir, claude_dir, codex_dir, copy_sqlite, mcnemar, not_a_request, repo_skills,
+from .common import (REPO, cache_dir, claude_dir, mcnemar, not_a_request, repo_skills,
                      say, wilson)
 
 OUT = REPO / "results" / "replay"
@@ -110,65 +110,8 @@ def claude_cases(exclude: set[str]):
             yield {"source": "claude", "session": f.stem, "request": request, "label": label or "none"}
 
 
-def codex_cases():
-    seen = set()
-    files = list((codex_dir() / "sessions").rglob("*.jsonl")) + list((codex_dir() / "archived_sessions").glob("*.jsonl"))
-    for f in files:
-        sid, request, label, exec_run = f.stem, None, None, False
-        for line in f.open(errors="replace"):
-            try:
-                d = json.loads(line)
-            except ValueError:
-                continue
-            p = d.get("payload") or {}
-            if d.get("type") == "session_meta":
-                sid = p.get("id", sid)
-                exec_run = p.get("originator") == "codex_exec"
-            if d.get("type") != "response_item":
-                continue
-            if p.get("type") == "message" and p.get("role") == "user":
-                t = "\n".join(b.get("text", "") for b in p.get("content") or [] if isinstance(b, dict))
-                if t.lstrip().startswith(("<environment_context", "# AGENTS.md", "<user_instructions", "<permissions", "<turn_aborted")):
-                    continue
-                if request is not None:
-                    break  # the next request: label only what the first one started
-                request = t.strip()
-            elif p.get("type") in ("function_call", "custom_tool_call") and request and label is None:
-                m = SKILL_MD.search(str(p.get("arguments") or p.get("input") or ""))
-                if m:
-                    label = m.group(1)
-        if request and not exec_run and sid not in seen:  # a thread can be in sessions/ and archived_sessions/
-            seen.add(sid)
-            yield {"source": "codex", "session": sid, "request": request, "label": label or "none"}
-    # Threads that live only in the thread store.
-    src = codex_dir() / "thread_history_1.sqlite"
-    if not src.exists():
-        return
-    with tempfile.TemporaryDirectory() as t:
-        db = sqlite3.connect(copy_sqlite(src, Path(t)))
-        threads: dict[str, dict] = {}
-        for tid, typ, js in db.execute("select thread_id, item_type, item_json from thread_items "
-                                       "where item_type in ('userMessage','commandExecution') order by thread_id, rollout_ordinal"):
-            if tid in seen:
-                continue
-            c = threads.setdefault(tid, {"source": "codex-store", "session": tid, "request": None, "label": "none"})
-            d = json.loads(js)
-            if typ == "userMessage" and c["request"] is not None:
-                c["closed"] = True
-            elif c.get("closed"):
-                continue
-            elif typ == "userMessage":
-                c["request"] = "\n".join(b.get("text", "") for b in d.get("content") or [] if isinstance(b, dict)).strip() or None
-            elif typ == "commandExecution" and c["request"] and c["label"] == "none":
-                m = SKILL_MD.search(d.get("command", ""))
-                if m:
-                    c["label"] = m.group(1)
-        db.close()
-    yield from ({k: v for k, v in c.items() if k != "closed"} for c in threads.values() if c["request"])
-
-
 def build_cases(exclude: set[str], negatives: int) -> list[dict]:
-    allc = [c for c in [*claude_cases(exclude), *codex_cases()]
+    allc = [c for c in claude_cases(exclude)
             if 10 <= len(c["request"]) <= 6000 and c["session"] not in exclude]
     pos = [c for c in allc if c["label"] in MINE]
     neg = [c for c in allc if c["label"] == "none"]
@@ -223,71 +166,6 @@ def run_claude(req: str, model: str, timeout: int = 180) -> dict:
     return out
 
 
-# A replay must not act. A request that starts no skill runs on, and these plugins can
-# drive the Mac outside the read-only sandbox: on 2026-11-22 replays opened Google Chrome
-# and set off macOS keychain prompts (measured). None of the four holds a skill, so the
-# list of skills Codex sees is the same without them.
-NO_PLUGINS = ("browser@openai-bundled", "chrome@openai-bundled",
-              "computer-use@openai-bundled", "unified-computer-use@openai-bundled")
-
-
-def codex_home(base: Path, skills: Path = REPO / "skills") -> tuple[Path, Path]:
-    home, cx = base / "home", base / "codex"
-    (home / ".agents").mkdir(parents=True)
-    shutil.copytree(skills, home / ".agents" / "skills")
-    cx.mkdir()
-    shutil.copy2(codex_dir() / "auth.json", cx / "auth.json")
-    os.chmod(cx / "auth.json", 0o600)
-    lines, skip = [], False
-    for l in (codex_dir() / "config.toml").read_text().splitlines():
-        if l.startswith("["):
-            skip = l.startswith("[mcp_servers") or any(l == f'[plugins."{n}"]' for n in NO_PLUGINS)
-        if skip or l.startswith("notify"):
-            continue
-        lines.append(l)
-    lines += [f'\n[plugins."{n}"]\nenabled = false' for n in NO_PLUGINS]
-    (cx / "config.toml").write_text("\n".join(lines) + "\n")
-    # The user's plugins, linked one by one, without the ones in NO_PLUGINS.
-    cache = codex_dir() / "plugins" / "cache"
-    if cache.is_dir():
-        for src in cache.iterdir():
-            if src.is_dir():
-                for plug in src.iterdir():
-                    if f"{plug.name}@{src.name}" not in NO_PLUGINS:
-                        (cx / "plugins" / "cache" / src.name).mkdir(parents=True, exist_ok=True)
-                        (cx / "plugins" / "cache" / src.name / plug.name).symlink_to(plug)
-    return home, cx
-
-
-def run_codex(req: str, home: Path, cx: Path, timeout: int = 240) -> dict:
-    with tempfile.TemporaryDirectory(prefix="agent-kit-replay-") as wd:
-        env = {**os.environ, "HOME": str(home), "CODEX_HOME": str(cx)}
-        cmd = ["codex", "exec", "--skip-git-repo-check", "-s", "read-only", "--json", req]
-        p = subprocess.Popen(cmd, cwd=wd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                             stderr=subprocess.DEVNULL, text=True, start_new_session=True)
-        started, t0, err = None, time.time(), None
-        try:
-            for line in p.stdout:
-                try:
-                    d = json.loads(line)
-                except ValueError:
-                    continue
-                it = d.get("item") or {}
-                m = SKILL_MD.search(json.dumps(it.get("command") or it.get("arguments") or ""))
-                if m:
-                    started = m.group(1)
-                if d.get("type") in ("error", "turn.failed"):
-                    err = str(d)[:200]
-                if not started and time.time() - t0 > timeout:
-                    err = "timeout"
-                if started or d.get("type") in ("turn.completed", "turn.failed") or time.time() - t0 > timeout:
-                    break
-        finally:
-            os.killpg(p.pid, signal.SIGTERM)
-            p.wait()
-        return {"started": started or "none", "seconds": round(time.time() - t0, 1), **({"error": err} if err else {})}
-
-
 # ---- before/after: the same requests with two versions of the skill descriptions ----
 
 def skills_at(rev: str, dest: Path) -> Path:
@@ -318,11 +196,9 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
     """Each request runs once per condition in every block i (order drawn with Random(i)).
 
     Claude Code reads the installed copies in $CLAUDE_CONFIG_DIR/skills, so the SKILL.md
-    files that differ are swapped for each block and put back after. Codex gets one
-    scratch home per condition and worker.
+    files that differ are swapped for each block and put back after.
     """
     from concurrent.futures import ThreadPoolExecutor
-    import queue
     revs = ab_revisions(before)
     done = set()
     if out.exists():
@@ -333,15 +209,10 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
         swap = [n for n in MINE
                 if (trees["before"] / n / "SKILL.md").exists()
                 and (trees["before"] / n / "SKILL.md").read_bytes() != (REPO / "skills" / n / "SKILL.md").read_bytes()]
-        live = {n: claude_dir() / "skills" / n / "SKILL.md" for n in swap} if agent == "claude" else {}
+        live = {n: claude_dir() / "skills" / n / "SKILL.md" for n in swap}
         saved = {n: f.read_bytes() if f.exists() else None for n, f in live.items()}
         if live:  # put the files back on `kill` too
             signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
-        homes = {}
-        if agent == "codex":
-            for cond, tree in trees.items():
-                for w in range(workers):
-                    homes[cond, w] = codex_home(Path(base) / f"{cond}-{w}", tree)
         try:
             for i in range(runs):
                 order = ["before", "after"]
@@ -350,25 +221,12 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
                     todo = [c for c in cases if (c["session"], i, cond) not in done]
                     if not todo:
                         continue
-                    if agent == "claude":
-                        for n, f in live.items():
-                            f.parent.mkdir(parents=True, exist_ok=True)
-                            f.write_bytes((trees[cond] / n / "SKILL.md").read_bytes())
+                    for n, f in live.items():
+                        f.parent.mkdir(parents=True, exist_ok=True)
+                        f.write_bytes((trees[cond] / n / "SKILL.md").read_bytes())
 
-                    slots: queue.Queue[int] = queue.Queue()
-                    for w in range(workers):
-                        slots.put(w)
-
-                    def go(c, cond=cond):  # each in-flight task checks out its own Codex home
-                        if agent == "claude":
-                            return run_claude(c["request"], model)
-                        w = slots.get()
-                        try:
-                            return run_codex(c["request"], *homes[cond, w])
-                        finally:
-                            slots.put(w)
                     with ThreadPoolExecutor(workers) as ex:
-                        res = list(ex.map(go, todo))
+                        res = list(ex.map(lambda c: run_claude(c["request"], model), todo))
                     with out.open("a") as fh:
                         for c, r in zip(todo, res):
                             fh.write(json.dumps({**c, "agent": agent, "run": i, "condition": cond, **revs, **r},
@@ -403,22 +261,15 @@ def cmd_replay(args: list[str]) -> int:
     cases = [json.loads(l) for l in (OUT / "cases.jsonl").read_text().splitlines()]
     out = OUT / f"{agent}.jsonl"
     done = {json.loads(l)["session"] for l in out.read_text().splitlines()} if out.exists() else set()
-    auth_before = (codex_dir() / "auth.json").read_bytes() if agent == "codex" else None
-    with tempfile.TemporaryDirectory(prefix="agent-kit-codex-") as base:
-        home = cx = None
-        if agent == "codex":
-            home, cx = codex_home(Path(base))
-        for i, c in enumerate(cases):
-            if c["session"] in done:
-                continue
-            r = run_claude(c["request"], model) if agent == "claude" else run_codex(c["request"], home, cx)
-            row = {**c, "agent": agent, **r}
-            row["request"] = c["request"][:300]
-            with out.open("a") as f:
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
-            say(f"[{i + 1}/{len(cases)}] {c['label']:28} -> {r['started']:28} {r['seconds']}s")
-        if agent == "codex" and (Path(cx) / "auth.json").read_bytes() != auth_before:
-            say("NOTE: Codex refreshed its sign-in in the scratch copy; the real auth.json was not changed")
+    for i, c in enumerate(cases):
+        if c["session"] in done:
+            continue
+        r = run_claude(c["request"], model)
+        row = {**c, "agent": agent, **r}
+        row["request"] = c["request"][:300]
+        with out.open("a") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        say(f"[{i + 1}/{len(cases)}] {c['label']:28} -> {r['started']:28} {r['seconds']}s")
     return 0
 
 

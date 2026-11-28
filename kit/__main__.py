@@ -6,17 +6,17 @@ import os
 import sys
 
 USAGE = """agent-kit COMMAND
-  install [--force]   apm install -g this repo, write Codex AGENTS.md, set the settings keys, verify
+  install [--force]   apm install -g -t agent-skills this repo, then verify
                       (--force replaces skill copies that were there before the first install)
-  verify              the installed files against hashes.json, apm audit --ci, the settings keys
+  verify              the installed files against hashes.json and apm audit --ci
   lock [--check]      install into an empty home and write (or compare) hashes.json
   stale [--memory]    names in the rules and skills that do not exist (exit 1);
                       --memory also reports dated memory records that are out of date (exit 0)
   overlap [--installed]  skill-reach overlap of the skill descriptions, red over the limits;
                       --installed also reports them against every installed skill
-  replay ...          replay past requests in a fresh Claude Code and Codex (see kit/replay.py)
+  replay ...          replay past requests in a fresh Claude Code (see kit/replay.py)
   index               build the session index again (search builds it when it is missing)
-  search QUERY        rank the sessions of both agents for QUERY
+  search QUERY        rank the sessions for QUERY
   search-proof cases|choose|score   real past searches from the logs, a rule chosen on
                       the older ones, scored once on the newer ones (see kit/search.py)
 """

@@ -1,5 +1,5 @@
 {
-  description = "agent-kit: what the user teaches Codex, installed with hashes";
+  description = "agent-kit: shared agent skills, installed with hashes";
 
   # Packages: agent-kit (default), apm and skill-reach. agent-kit finds both
   # on its PATH. skill-reach needs three Python packages that nixpkgs 26.05
@@ -79,7 +79,7 @@
           src = pkgs.lib.fileset.toSource {
             root = ./.;
             fileset = pkgs.lib.fileset.unions [
-              ./kit ./skills ./.apm ./agents ./apm.yml ./hashes.json
+              ./kit ./skills ./.apm ./apm.yml ./hashes.json
             ];
           };
           agent-kit = pkgs.writeShellApplication {

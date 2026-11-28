@@ -64,7 +64,7 @@ import tempfile
 from collections import Counter
 from pathlib import Path
 
-from .common import HOME, cache_dir, claude_dir, codex_dir, copy_sqlite, not_a_request, say, wilson
+from .common import HOME, cache_dir, claude_dir, not_a_request, say, wilson
 
 CACHE = cache_dir()
 DB = CACHE / "sessions.db"
@@ -115,60 +115,6 @@ def claude_file(f: Path, sid: str, kind: str):
             yield sid, kind, project, d.get("timestamp", ""), d["type"], t
 
 
-def codex_rollout_rows():
-    files = list((codex_dir() / "sessions").rglob("*.jsonl")) + list((codex_dir() / "archived_sessions").glob("*.jsonl"))
-    for f in files:
-        sid, cwd = f.stem, ""
-        for line in f.open(errors="replace"):
-            try:
-                d = json.loads(line)
-            except ValueError:
-                continue
-            p = d.get("payload") or {}
-            if d.get("type") == "session_meta":
-                sid, cwd = p.get("id", sid), p.get("cwd", "")
-                continue
-            if d.get("type") != "response_item":
-                continue
-            t, role = "", p.get("role", "tool")
-            if p.get("type") == "message" and role in ("user", "assistant"):
-                t = text_of(p.get("content"))
-            elif p.get("type") in ("function_call", "custom_tool_call"):
-                t = f"[{p.get('name')}] " + str(p.get("arguments") or p.get("input") or "")
-            if t.strip():
-                yield sid, "codex", cwd, d.get("timestamp", ""), role, t
-
-
-def iso_ms(ms) -> str:
-    """Milliseconds since 1970 as the ISO text the other stores use (UTC)."""
-    import datetime
-    return datetime.datetime.fromtimestamp(int(ms) / 1000, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
-
-def codex_store_rows(tmp: Path):
-    src = codex_dir() / "thread_history_1.sqlite"
-    if not src.exists():
-        return
-    db = sqlite3.connect(copy_sqlite(src, tmp))
-    for tid, ms, typ, js in db.execute(
-            "select thread_id, created_at_ms, item_type, item_json from thread_items "
-            "where item_type in ('userMessage','agentMessage','fileChange','commandExecution','mcpToolCall')"):
-        d = json.loads(js)
-        if typ == "userMessage":
-            t = text_of(d.get("content"))
-        elif typ == "agentMessage":
-            t = d.get("text", "")
-        elif typ == "fileChange":
-            t = "\n".join(c.get("path", "") + "\n" + (c.get("diff") or "") for c in d.get("changes", []))
-        elif typ == "commandExecution":
-            t = d.get("command", "")
-        else:
-            t = json.dumps(d.get("arguments", ""), ensure_ascii=False)
-        if t.strip():
-            yield tid, "codex-store", "", iso_ms(ms), typ, t
-    db.close()
-
-
 def pi_rows():
     root = Path(os.environ.get("PI_CODING_AGENT_DIR") or HOME / ".pi/agent") / "sessions"
     for f in root.rglob("*.jsonl") if root.is_dir() else []:
@@ -195,16 +141,15 @@ def build_index(path: Path = DB) -> Counter:
     db.execute("create virtual table rows using fts5(sid unindexed, kind unindexed, place unindexed, "
                "ts unindexed, role unindexed, body, tokenize='unicode61 remove_diacritics 2')")
     n: Counter = Counter()
-    with tempfile.TemporaryDirectory(prefix="agent-kit-index-") as t:
-        for src in (claude_rows(), codex_rollout_rows(), codex_store_rows(Path(t)), pi_rows()):
-            batch = []
-            for r in src:
-                n[r[1]] += 1
-                batch.append(r[:5] + (r[5][:200_000],))
-                if len(batch) >= 2000:
-                    db.executemany("insert into rows values (?,?,?,?,?,?)", batch)
-                    batch = []
-            db.executemany("insert into rows values (?,?,?,?,?,?)", batch)
+    for src in (claude_rows(), pi_rows()):
+        batch = []
+        for r in src:
+            n[r[1]] += 1
+            batch.append(r[:5] + (r[5][:200_000],))
+            if len(batch) >= 2000:
+                db.executemany("insert into rows values (?,?,?,?,?,?)", batch)
+                batch = []
+        db.executemany("insert into rows values (?,?,?,?,?,?)", batch)
     db.execute("create virtual table vocab using fts5vocab(rows, row)")
     db.commit()
     db.close()
@@ -329,78 +274,12 @@ def claude_events(f: Path):
     return ev
 
 
-def codex_events(f: Path):
-    sid, ev = None, []
-    for line in f.open(errors="replace"):
-        try:
-            d = json.loads(line)
-        except ValueError:
-            continue
-        ts, p = d.get("timestamp", ""), d.get("payload") or {}
-        if d.get("type") == "session_meta":
-            sid = p.get("id")
-        if d.get("type") != "response_item":
-            continue
-        t = p.get("type")
-        if t == "message":
-            txt = "\n".join(b.get("text", "") for b in p.get("content") or [] if isinstance(b, dict))
-            if p.get("role") == "user" and not txt.lstrip().startswith(
-                    ("<environment_context", "# AGENTS.md", "<user_instructions", "<permissions", "<turn_aborted")):
-                ev.append((ts, "user", txt))
-            elif p.get("role") == "assistant":
-                ev.append((ts, "say", txt))
-        elif t in ("function_call", "custom_tool_call"):
-            a = p.get("arguments") or p.get("input") or ""
-            try:
-                a = json.loads(a) if isinstance(a, str) and a.startswith("{") else {"command": a}
-            except ValueError:
-                a = {"command": a}
-            ev.append((ts, "call", p.get("name") or "", a))
-        elif t in ("function_call_output", "custom_tool_call_output"):
-            o = p.get("output")
-            ev.append((ts, "result", (o if isinstance(o, str) else json.dumps(o))[:20000]))
-    return sid, ev
-
-
-def store_events(tmp: Path):
-    """Threads that live only in the Codex thread store: requests, replies, commands."""
-    src = codex_dir() / "thread_history_1.sqlite"
-    if not src.exists():
-        return
-    db = sqlite3.connect(copy_sqlite(src, tmp))
-    threads: dict[str, list] = {}
-    for tid, ms, typ, js in db.execute("select thread_id, created_at_ms, item_type, item_json from thread_items "
-                                       "order by thread_id, rollout_ordinal"):
-        d, ts = json.loads(js), iso_ms(ms)
-        e = threads.setdefault(tid, [])
-        if typ == "userMessage":
-            e.append((ts, "user", text_of(d.get("content"))))
-        elif typ == "agentMessage":
-            e.append((ts, "say", d.get("text", "")))
-        elif typ == "commandExecution":
-            e.append((ts, "call", "exec", {"command": d.get("command", "")}))
-            e.append((ts, "result", str(d.get("aggregatedOutput") or "")[:20000]))
-    db.close()
-    yield from threads.items()
-
-
 def session_events():
-    """(searching session, events) for every Claude session, subagent, Codex rollout and store thread."""
-    seen = set()
+    """(searching session, events) for every Claude session and subagent."""
     for f in (claude_dir() / "projects").glob("*/*.jsonl"):
-        seen.add(f.stem)
         yield f.stem, claude_events(f)
     for f in (claude_dir() / "projects").glob("*/*/subagents/*.jsonl"):
         yield f.parent.parent.name, claude_events(f)  # a subagent searches for its parent
-    for f in list((codex_dir() / "sessions").rglob("*.jsonl")) + list((codex_dir() / "archived_sessions").glob("*.jsonl")):
-        sid, ev = codex_events(f)
-        if sid and sid not in seen:
-            seen.add(sid)
-            yield sid, ev
-    with tempfile.TemporaryDirectory(prefix="agent-kit-proof-") as t:
-        for tid, ev in store_events(Path(t)):
-            if tid not in seen:
-                yield tid, ev
 
 
 def call_text(e) -> str:
@@ -564,7 +443,7 @@ def ripgrep_rank(c: dict, exclude: set[str]) -> list[str]:
     cmd = ["rg", "-i", "-F", "--no-line-number", "--with-filename", "--no-messages", "--glob", "*.jsonl"]
     for p in pats:
         cmd += ["-e", p]
-    roots = [claude_dir() / "projects", codex_dir() / "sessions", codex_dir() / "archived_sessions"]
+    roots = [claude_dir() / "projects"]
     proc = subprocess.Popen(cmd + [str(r) for r in roots if r.exists()], stdout=subprocess.PIPE, text=True, errors="replace")
     count: Counter = Counter()
     last: dict[str, str] = {}

@@ -22,7 +22,7 @@ fresh() { rm -rf "$t/r"; cp -R "$repo" "$t/r"; rm -rf "$t/r/.git"; }
 # rules name are made there first, so a clean run passes on any machine. The
 # cost: this test does not show that those paths exist in the real home.
 sh_home=$t/home
-stale() { HOME="$sh_home" CLAUDE_CONFIG_DIR="$t/cfg" CODEX_HOME="$t/codex" python3 -m kit stale "$@"; }
+stale() { HOME="$sh_home" CLAUDE_CONFIG_DIR="$t/cfg" python3 -m kit stale "$@"; }
 
 fresh
 (cd "$t/r" && HOME="$sh_home" python3 -c '

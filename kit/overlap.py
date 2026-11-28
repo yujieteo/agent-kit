@@ -9,7 +9,7 @@ repository's skills is in any group but Distinct. `reach lint` sees a copied
 description too, but it exits 0, so it cannot be the check.
 
 --installed also measures the repository's skills against every other skill
-installed for Claude Code and Codex (plugin and app skills), as a report.
+installed in ~/.agents/skills and Claude Code (plugin and app skills), as a report.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .common import REPO, HOME, claude_dir, codex_dir, find_tool, repo_skills, say
+from .common import REPO, HOME, claude_dir, find_tool, repo_skills, say
 
 RATIO, SIMILARITY = 0.5, 0.75
 
@@ -38,10 +38,10 @@ def run_overlap(corpus: Path) -> list[dict]:
 
 
 def installed_corpus(dest: Path) -> int:
-    """Every SKILL.md installed for either agent, one folder per name."""
+    """Every installed SKILL.md, one folder per name."""
     seen = set()
     for root in [REPO / "skills", claude_dir() / "skills", claude_dir() / "plugins",
-                 HOME / ".agents/skills", codex_dir() / "skills", codex_dir() / "plugins"]:
+                 HOME / ".agents/skills"]:
         for f in sorted(root.rglob("SKILL.md")) if root.is_dir() else []:
             if ".trash" in f.parts:
                 continue

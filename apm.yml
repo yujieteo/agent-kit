@@ -1,5 +1,5 @@
 name: agent-kit
 version: 0.1.0
-description: What the user teaches Codex - skills and standing instructions
+description: Shared agent skills and standing instructions
 targets:
-  - codex
+  - agent-skills

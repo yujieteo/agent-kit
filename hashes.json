@@ -18,7 +18,6 @@
   "agents:skills/definition-embedded-videos/scripts/render.js": "sha256:027f16cc98ceb350c7996c87875baeb46f448beec9e7ff9145d21607fa97ced8",
   "agents:skills/definition-embedded-videos/scripts/tts_phonon.py": "sha256:0287e8d8728f0dea52aea824f1432ace6f1a470ed0b0c01d132bf1a31dc82dee",
   "agents:skills/narrative-definition-videos/SKILL.md": "sha256:4c2be8a108a2bbc9293f981d4046b056711faf6efb7040b8d4a54c3181cf961a",
-  "agents:skills/narrative-definition-videos/references/narrative.md": "sha256:68c78b15257d8073cc76c6ff00717797a0e4fadbf6c024aadd5ea04a80d2fe61",
-  "codex:AGENTS.md": "sha256:497bf6ba9d891777f6e00e2fffe853c2e564e7907e90ddd3e9258d8cd23d3742"
+  "agents:skills/narrative-definition-videos/references/narrative.md": "sha256:68c78b15257d8073cc76c6ff00717797a0e4fadbf6c024aadd5ea04a80d2fe61"
  }
 }
