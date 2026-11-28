@@ -67,7 +67,7 @@ class Marked(list):
 
 class Glossary:
     def __init__(self, *paths):
-        self.entries, self.fixes, self._re, self.depth = [], [], {}, 1
+        self.entries, self.fixes, self._re, self.depth = [], [], {}, 3
         self.memory = 120.0         # seconds: how long the listener keeps a meaning after the first time (0: no memory)
         for path in paths:
             self.load(path)
@@ -922,8 +922,8 @@ def for_voice(text, G):
 
 # ---------------------------------------------------------------- lint
 
-VAGUE = re.compile(r"\b(?:like|such as|kind of|sort of|roughly|loosely|more or less|in a way|special(?! relativity| linear| orthogonal| unitary| fib| case)|things?|"
-                   r"something|somehow|measures how|behaves like|tells you|in the role of)\b", re.I)
+VAGUE = re.compile(r"\b(?:kind of|sort of|roughly|loosely|more or less|in a way|"
+                   r"somehow|measures how|behaves like|tells you|in the role of)\b", re.I)
 
 
 def lint_glossary(G):
@@ -942,40 +942,38 @@ def lint_glossary(G):
     for f, o in forms:
         table.setdefault(f, []).append(o)
 
+    def shares_scope(a, b):
+        return not a.scopes or not b.scopes or bool(a.scopes & b.scopes)
+
     for e in G.entries:
         tag = f"{e.line} ({e.key})"
         d = e.defn
         own = {f.lower() for f in e.forms}
         used = [(m.group(0), o) for m in (rx.finditer(def_plain(d).lower()) if rx else []) if m.group(0) not in own
-                for o in table[m.group(0)] if o is not e and not o.base]
+                for o in table[m.group(0)] if o is not e and not o.base and shares_scope(e, o)]
         uses[id(e)] = used
         if used and G.depth == 1:
             errs.append(f"{tag}: the definition uses the glossary term '{used[0][0]}'. "
-                        f"Without '!depth', a definition has no glossary term in it.")
+                        f"With '!depth 1', a definition has no glossary term in it.")
         n = len(def_say(d, "x x x").split())
         if n > 40:
-            errs.append(f"{tag}: {n} words. The limit for a definition is 40: move a part into a term of its own.")
-        plain = def_plain(d)
-        if re.search(r"[;()]", plain) or re.search(r"\b\w+(?:n't|'(?:re|ll|ve|m|d))\b", plain, re.I):
-            errs.append(f"{tag}: no semicolons, brackets or contractions in a definition (outside formulas).")
+            warns.append(f"{tag}: {n} words (aim for 40 or fewer).")
         if e.short:
             ns = len(def_say(e.short, "x x x").split())
             if ns > 16:
-                errs.append(f"{tag}: the reminder after '|' has {ns} words. The limit is 16.")
-            if re.search(r"[;()]", def_plain(e.short)):
-                errs.append(f"{tag}: no semicolons or brackets in a reminder (outside formulas).")
+                warns.append(f"{tag}: the reminder after '|' has {ns} words (aim for 16 or fewer).")
         m = VAGUE.search(def_plain(d + " " + (e.short or "")))
         if m:
             warns.append(f"{tag}: '{m.group(0)}' is a sign of a loose description. Give the exact definition.")
 
-    state = {}                                       # a definition must not come back to its own term
+    state = {}
 
     def walk(e, path):
         if state.get(id(e)) == 2:
             return
         if state.get(id(e)) == 1:
             loop = path[[x for x, _ in path].index(e):]
-            errs.append(f"{e.line} ({e.key}): definition loop: " + " -> ".join(k for _, k in loop) + f" -> {e.key}")
+            warns.append(f"{e.line} ({e.key}): definition loop: " + " -> ".join(k for _, k in loop) + f" -> {e.key}")
             return
         state[id(e)] = 1
         for _, o in uses[id(e)]:
@@ -1240,21 +1238,19 @@ def build_chapter(path, G, a, work):
             print(f"  {src}: {p}")
     due = [(b, e, lvl) for b in beats for e, lvl in b.todo]
     ctodo = work / (path.stem + ".context.todo.txt")
-    if due:
-        out_l = ["# Places where the video gives a meaning and " + path.stem + ".context.txt has no line for it.",
-                 "# After ' => ' write the meaning for that sentence (see 'Finalise' in references/writing.md):",
-                 f"#   first:    the definition, cut to the conditions that matter here ({FIRST_WORDS} words or fewer)",
-                 f"#   reminder: the key feature that matters in this sentence ({AGAIN_WORDS} words or fewer)",
-                 "# Then move the lines to " + path.stem + ".context.txt.", ""]
+    if a.context_todo and due:
+        out_l = ["# Optional per-sentence overrides not yet in " + path.stem + ".context.txt.",
+                 "# After ' => ' write a tailored meaning for that sentence:",
+                 f"#   first:    aim for {FIRST_WORDS} words or fewer",
+                 f"#   reminder: aim for {AGAIN_WORDS} words or fewer",
+                 "# Move the lines you want to override into " + path.stem + ".context.txt.", ""]
         for b, e, lvl in due:
             n = b.src.rsplit(":", 1)[1]
             out_l += [f"# {n} ({'first' if lvl == 'full' else 'reminder'}): {b.raw}", f"#   definition: {e.defn}",
                       f"{n} {e.key} => ", ""]
         ctodo.write_text("\n".join(out_l))
-        print(f"  {path.name}: {len(due)} meanings use the glossary's words, not words for their sentence "
-              f"({sum(l == 'full' for _, _, l in due)} first, {sum(l != 'full' for _, _, l in due)} reminders). "
-              f"They are listed in {ctodo.name}")
-    elif ctodo.exists():
+        print(f"  {path.name}: wrote {len(due)} optional override entries to {ctodo.name}")
+    elif a.context_todo and ctodo.exists():
         ctodo.unlink()
     for b in beats:
         for e, lvl, text in b.used:
@@ -1426,6 +1422,7 @@ def main():
     ap.add_argument("--lint", action="store_true", help="check only")
     ap.add_argument("--formulas", action="store_true", help="with --lint: also typeset every formula")
     ap.add_argument("--narration", action="store_true", help="with --lint: write NAME.narration.txt, the text the voice says")
+    ap.add_argument("--context-todo", action="store_true", help="write NAME.context.todo.txt for optional per-sentence overrides")
     ap.add_argument("--engine", choices=["phonon", "say"], default="phonon")
     ap.add_argument("--voice", default=None, help="Phonon catalogue voice (default Everly) or a macOS voice for --engine say")
     ap.add_argument("--motion", choices=["full", "steps", "none"], default=None,

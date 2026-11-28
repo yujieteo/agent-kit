@@ -4,7 +4,7 @@
 
 Use teoyujie.org's restrained style: plain headings, dark text on white, quiet grey rules, no decoration. Typeset with XeLaTeX, `fontspec`, and `unicode-math` on a 16:9 page, one slide per page. Set text in Inter, mathematics in STIX Two Math, and upright names in math (`\mathrm`) in STIX Two Text. Treat any "Missing character" line in the log as a failure.
 
-Build on [wbslides.sty](wbslides.sty), which implements this layout: `\round{title}{goal}{notation}`, `\given` for a line to copy, `\step` for a blank, `\choosestep` for a blank whose rule is hidden, `\textslide`, and `\fullchain[n]`. [example-dorigoni.tex](example-dorigoni.tex) is a finished deck. The template loads Inter from its `.ttf` files by name. Build with `OSFONTDIR` set to the folder that holds them, for example `OSFONTDIR=~/Library/Fonts/HomeManager/truetype xelatex deck.tex`.
+Build on [wbslides.sty](wbslides.sty), which implements this layout: `\round{title}{goal}{notation}`, `\given` for a line to copy, `\step` for a blank, `\choosestep` for a blank whose rule is hidden, `\textslide`, and `\fullchain[n]`. [example-dorigoni.tex](example-dorigoni.tex) is a finished deck. Compile with `xelatex deck.tex`.
 
 Lay out every slide the same way, so the eye always finds things in the same place:
 

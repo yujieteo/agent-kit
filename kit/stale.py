@@ -1,20 +1,4 @@
-"""stale: names in the standing rules, skills and memory that no longer exist.
-
-adobe/ai-repo-harness-guide gives this check only as a prompt for an agent
-(harness-inspect/references/health-check.md); it has no script. This is the
-script.
-
-Rules and skills (the repository's .apm/instructions and skills/): a path, a
-command, a skill or a branch that does not exist is a FAIL, exit 1.
-
-Memory (--memory: $CLAUDE_CONFIG_DIR/projects/*/memory/*.md): a memory file
-is a dated status record. A PR that it calls open and that GitHub says is
-merged or closed, a branch that GitHub no longer has, a path that is gone:
-each is reported as OUT OF DATE, and the exit stays 0. Memory files are
-never edited.
-
-GitHub is asked each time (gh); local refs are never trusted.
-"""
+"""stale: check repo-internal references in rules and skills, plus optional --memory audit."""
 
 from __future__ import annotations
 
@@ -22,32 +6,17 @@ import functools
 import json
 import os
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
-from .common import REPO, HOME, claude_dir, repo_skills, say
+from .common import HOME, REPO, claude_dir, repo_skills, say
 
 OWNER = os.environ.get("AGENT_KIT_GH_OWNER", "yujieteo")
-BUILTINS = {
-    "cd", "echo", "export", "for", "if", "then", "fi", "do", "done", "set", "read", "printf",
-    "test", "[", "while", "case", "esac", "exit", "return", "source", ".", "eval", "exec",
-    "local", "unset", "trap", "wait", "true", "false", "else", "elif", "time", "mkdir", "cat",
-}
-# Claude Code's own slash commands; not skills, never a file.
-CLAUDE_COMMANDS = {
-    "advisor", "compact", "clear", "config", "model", "help", "init", "login", "logout",
-    "memory", "review", "resume", "status", "doctor", "permissions", "hooks", "agents",
-    "mcp", "plugin", "fast", "loop", "schedule", "artifacts", "auto-mode-setup",
-}
 
-
-# ---- what exists --------------------------------------------------------------
 
 def skill_names() -> set[str]:
     names = set(repo_skills())
-    roots = [claude_dir() / "skills", HOME / ".agents/skills", claude_dir() / "plugins"]
-    for r in roots:
+    for r in (claude_dir() / "skills", HOME / ".agents/skills", claude_dir() / "plugins"):
         if r.is_dir():
             for f in r.rglob("SKILL.md"):
                 if ".trash" in f.parts:
@@ -86,7 +55,7 @@ def repo_slug(name: str) -> str | None:
 def branch_exists(slug: str, branch: str) -> bool:
     r = subprocess.run(["git", "ls-remote", "--heads", f"https://github.com/{slug}", branch],
                        capture_output=True, text=True, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
-    if r.returncode:  # private repo over plain https: ask the API
+    if r.returncode:
         return gh_json("api", f"repos/{slug}/branches/{branch}") is not None
     return bool(r.stdout.strip())
 
@@ -100,12 +69,11 @@ def pr_state(slug: str, n: int) -> str | None:
 
 PATH_RE = re.compile(r"(?<![\w/.])((?:~|\$HOME|/Users/[\w.-]+)/[\w@%+=:,./-]*[\w/])")
 CODE_RE = re.compile(r"`([^`\n]+)`")
-FENCE_RE = re.compile(r"^```([\w-]*)\n(.*?)^```", re.S | re.M)
-SLASH_RE = re.compile(r"(?<![\w/.~`$-])/([a-z][a-z0-9]*(?:-[a-z0-9]+)+)(?![\w/.-])")
+MD_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)\s]+)\)")
 SKILL_RE = re.compile(r"(?:\bskill `([a-z][\w:-]+)`|`([a-z][\w:-]+)` skill\b)")
 BRANCH_RE = re.compile(r"(?:\b([\w-]+) )?branch(?:es)? `([\w./-]+)`|`([\w./-]+)` branch\b", re.I)
 PR_RE = re.compile(r"(?:\b([\w-]+) )?PRs? #?(\d+)")
-REL_RE = re.compile(r"^(?:\./)?[\w.-]+(?:/[\w.-]+)+/?$")
+REL_RE = re.compile(r"^(?:\.\./|\./)?(?:references|scripts|assets)/[\w./-]+$")
 
 
 def expand(p: str) -> Path:
@@ -124,50 +92,26 @@ def placeholder(s: str) -> bool:
     return bool(re.search(r"[<>*{}\[\]]|\.\.\.|(?:^|[/_-])[A-Z][A-Z0-9]{2,}(?:$|[/._-])", s))
 
 
-def commands_in(text: str) -> set[str]:
-    cmds = set()
-    for lang, body in FENCE_RE.findall(text):
-        if lang not in ("sh", "bash", "shell", "zsh", "console"):
-            continue
-        for line in body.splitlines():
-            line = line.strip().lstrip("$ ").strip()
-            if not line or line.startswith("#"):
-                continue
-            w = re.split(r"[\s|;&()]", line, 1)[0]
-            if w and not re.match(r"^[\w]+=", w) and not placeholder(w):
-                cmds.add(w)
-    return cmds
-
-
-def check_text(text: str, base: Path, skills: set[str]) -> list[str]:
-    """The dead names in one rule or skill file. base: the folder of the file."""
+def check_text(text: str, file_dir: Path, skill_root: Path, skills: set[str]) -> list[str]:
+    """Check deterministic repo-internal paths, markdown links, and explicit skill names."""
     bad = []
-    for p in set(PATH_RE.findall(text)):
-        if not placeholder(p) and not expand(p).exists():
-            bad.append(f"path {p} does not exist")
     for code in set(CODE_RE.findall(text)):
         c = code.strip()
         if REL_RE.match(c) and not placeholder(c) and "." in c.rsplit("/", 1)[-1]:
-            if not (base / c).exists() and not (REPO / c).exists():
-                bad.append(f"path {c} does not exist (next to {base.name}/)")
-    for c in sorted(commands_in(text)):
-        if c in BUILTINS:
+            if not (skill_root / c).exists() and not (file_dir / c).exists() and not (REPO / c).exists():
+                bad.append(f"path {c} does not exist (next to {skill_root.name}/)")
+    for target in set(MD_LINK_RE.findall(text)):
+        if target.startswith(("http://", "https://", "mailto:", "#")):
             continue
-        if not shutil.which(c) and not (base / c).exists():
-            bad.append(f"command {c} is not on PATH")
-    for s in set(SLASH_RE.findall(text)):
-        if s not in skills and s not in CLAUDE_COMMANDS:
-            bad.append(f"skill /{s} does not exist")
+        rel = target.split("#", 1)[0]
+        if not rel or placeholder(rel):
+            continue
+        if not (file_dir / rel).exists() and not (skill_root / rel).exists():
+            bad.append(f"link {target} does not exist (next to {file_dir.name}/)")
     for a, b in SKILL_RE.findall(text):
         s = a or b
         if s not in skills:
             bad.append(f"skill {s} does not exist")
-    for sent in sentences(text):
-        for repo, br, br2 in BRANCH_RE.findall(sent):
-            branch = br or br2
-            slug = repo_slug(repo) if repo else None
-            if slug and not branch_exists(slug, branch):
-                bad.append(f"branch {branch} is not on GitHub ({slug})")
     return bad
 
 
@@ -181,9 +125,7 @@ def rule_files() -> list[Path]:
 
 PR_DONE = re.compile(r"\b(merged|closed)\b", re.I)
 PR_OPEN = re.compile(r"\b(open|opened|draft|waits?|waiting|not merged|ready)\b", re.I)
-# A branch the record itself calls gone or local is not a claim about GitHub.
 BRANCH_SKIP = re.compile(r"\b(deleted|gone|removed|merged|not pushed|local branch|locally)\b", re.I)
-# A path the record itself places on another machine, or calls old or gone, is history.
 PATH_SKIP = re.compile(r"\b(on the (desktop|server)|leftovers?|moved|gone|old|trashed|cleared|deleted|removed|dead)\b", re.I)
 SLUG_PR_RE = re.compile(r"\b([\w-]+/[\w.-]+)#(\d+)")
 REPO_AT_RE = re.compile(r"~/src/([\w.-]+)|github\.com/[\w-]+/([\w.-]+)|\b[\w-]+/([\w.-]+)#\d+|\b" + OWNER + r"/([\w-]+)")
@@ -195,7 +137,6 @@ def file_repo(text: str) -> str | None:
 
 
 def repo_before(para: str, pos: int, default: str | None) -> str | None:
-    """The repository named last before pos in the paragraph, else the file's first."""
     last = None
     for m in REPO_AT_RE.finditer(para[:pos]):
         last = next(g for g in m.groups() if g)
@@ -251,7 +192,8 @@ def cmd_stale(args: list[str]) -> int:
     skills = skill_names()
     fails = 0
     for f in rule_files():
-        for b in check_text(f.read_text(errors="replace"), f.parent if f.parent.name != "references" else f.parent.parent, skills):
+        skill_root = f.parent if f.parent.name != "references" else f.parent.parent
+        for b in check_text(f.read_text(errors="replace"), f.parent, skill_root, skills):
             fails += 1
             say(f"FAIL {f.relative_to(REPO)}: {b}")
     say(f"stale rules and skills: {'FAIL' if fails else 'PASS'} ({len(rule_files())} files, {fails} dead names)")

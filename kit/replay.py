@@ -1,43 +1,20 @@
-"""replay: the user's real past requests, replayed in a fresh Claude Code and a
-fresh Codex, and the skill that starts in each.
+"""replay: the user's real past requests, replayed in a fresh Claude Code, and the skill that starts in each.
 
-skill-reach (google/skill-reach) cannot count this on the user's setup:
-- it has no Codex runtime;
-- with its config isolation on, Claude Code has no sign-in ("Not logged in");
-- with it off, every skill outside the test set (the user's plugin skills)
-  ends the run as a "residency leak", so the real competition is not counted.
-So this runner detects a start the way skill-reach does for Claude (a
-`Skill` tool_use in --output-format stream-json, claude_code.py:289-292) and
-counts every skill, plugin skills too.
+Cases (`replay cases`): the first real request of each past Claude Code session.
+`label` is the skill that started in that session: the first Skill call or /skill
+command before the user's next request. A /skill command is replayed without the
+command, so the request must win on its words alone. Every session with one of the
+repository's skills is a case, plus a fixed random sample (seed 0) of sessions
+where none started.
 
-Cases (`replay cases`): the first real request of each past session, from
-both agents' logs. `label` is the skill that started in that session: the
-first Skill call or /skill command (Claude), or the first read of a
-skills/NAME/SKILL.md (Codex), before the user's next request. A /skill command
-is replayed without the command, so the request must win on its words alone.
-Every session with one of the repository's skills is a case, plus a fixed
-random sample (seed 0) of sessions where none started.
+Answers (`report`): a replay is right when it starts the skill that the original
+session shows was wanted, not merely the one that started then. The marks are in
+results/replay/marks/marks.jsonl.
 
-Answers (`report`): a replay is right when it starts the skill that the
-original session shows was wanted, not merely the one that started then. The
-marks are in results/replay/marks/marks.jsonl, made by a separate agent that saw
-only the original sessions, by the rule in marks/RULE.md: was the work kept,
-or did the user correct it?
-
-Before/after (`replay --agent A --before REV --cases FILE --runs N`): each
+Before/after (`replay --agent claude --before REV --cases FILE --runs N`): each
 request runs N times with the skill descriptions at REV and N times with the
-current ones, in pairs (run i of both, order drawn with Random(i)). `report`
-gives each pass rate with a 95% Wilson range, an exact McNemar test on the
-pairs, and a sign-flip test over requests.
-
-Claude: `claude -p` in an empty folder, the user's own CLAUDE_CONFIG_DIR (its
-sign-in, skills and plugins), --tools Skill (so the request does no work),
---no-session-persistence (no log), the model of this run.
-Codex: `codex exec --json -s read-only` in an empty folder, a scratch
-CODEX_HOME (sign-in copied in, the user's config.toml without the notifier
-and the MCP servers, no logs left in the real folder), a scratch HOME whose
-~/.agents/skills holds the repository's skills, as after `agent-kit install`.
-It is stopped at the first SKILL.md it reads.
+current ones, using isolated temporary CLAUDE_CONFIG_DIR staging so live skills
+are never mutated on disk.
 """
 
 from __future__ import annotations
@@ -129,14 +106,14 @@ def build_cases(exclude: set[str], negatives: int) -> list[dict]:
 CLAUDE_CWD = cache_dir() / "replay-cwd"
 
 
-def run_claude(req: str, model: str, timeout: int = 180) -> dict:
+def run_claude(req: str, model: str, timeout: int = 180, env: dict[str, str] | None = None) -> dict:
     CLAUDE_CWD.mkdir(parents=True, exist_ok=True)
     if any(CLAUDE_CWD.iterdir()):
         raise SystemExit(f"agent-kit: {CLAUDE_CWD} must be empty")
     cmd = ["claude", "-p", req, "--output-format", "stream-json", "--verbose", "--tools", "Skill",
            "--no-session-persistence", "--max-turns", "2", "--model", model]
     p = subprocess.Popen(cmd, cwd=CLAUDE_CWD, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
-                         start_new_session=True)
+                         start_new_session=True, env=env)
     started, listed, t0, result = None, None, time.time(), None
     try:
         for line in p.stdout:
@@ -192,11 +169,31 @@ def ab_revisions(before: str) -> dict[str, str]:
     return {"before_rev": git_rev(before), "after_rev": git_rev("HEAD") + ("+edits" if dirty else "")}
 
 
+def _stage_claude_dir(dest: Path, skills_src: Path) -> Path:
+    """Create a temp CLAUDE_CONFIG_DIR that symlinks auth/settings and overlays skills_src."""
+    dest.mkdir(parents=True, exist_ok=True)
+    src = claude_dir()
+    if src.is_dir():
+        for entry in src.iterdir():
+            if entry.name == "skills":
+                continue
+            (dest / entry.name).symlink_to(entry)
+    dst_skills = dest / "skills"
+    dst_skills.mkdir(exist_ok=True)
+    if (src / "skills").is_dir():
+        for entry in (src / "skills").iterdir():
+            if entry.name not in MINE:
+                (dst_skills / entry.name).symlink_to(entry)
+    for n in MINE:
+        if (skills_src / n).is_dir():
+            shutil.copytree(skills_src / n, dst_skills / n)
+    return dest
+
+
 def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, model: str, workers: int = 4) -> None:
     """Each request runs once per condition in every block i (order drawn with Random(i)).
 
-    Claude Code reads the installed copies in $CLAUDE_CONFIG_DIR/skills, so the SKILL.md
-    files that differ are swapped for each block and put back after.
+    Each condition runs against an isolated temporary CLAUDE_CONFIG_DIR so live skills are never modified.
     """
     from concurrent.futures import ThreadPoolExecutor
     revs = ab_revisions(before)
@@ -205,39 +202,24 @@ def run_ab(agent: str, cases: list[dict], before: str, runs: int, out: Path, mod
         done = {(r["session"], r["run"], r["condition"]) for r in map(json.loads, out.read_text().splitlines())
                 if "error" not in r}
     with tempfile.TemporaryDirectory(prefix="agent-kit-ab-") as base:
-        trees = {"before": skills_at(before, Path(base) / "before"), "after": REPO / "skills"}
-        swap = [n for n in MINE
-                if (trees["before"] / n / "SKILL.md").exists()
-                and (trees["before"] / n / "SKILL.md").read_bytes() != (REPO / "skills" / n / "SKILL.md").read_bytes()]
-        live = {n: claude_dir() / "skills" / n / "SKILL.md" for n in swap}
-        saved = {n: f.read_bytes() if f.exists() else None for n, f in live.items()}
-        if live:  # put the files back on `kill` too
-            signal.signal(signal.SIGTERM, lambda *_: sys.exit(1))
-        try:
-            for i in range(runs):
-                order = ["before", "after"]
-                random.Random(i).shuffle(order)
-                for cond in order:
-                    todo = [c for c in cases if (c["session"], i, cond) not in done]
-                    if not todo:
-                        continue
-                    for n, f in live.items():
-                        f.parent.mkdir(parents=True, exist_ok=True)
-                        f.write_bytes((trees[cond] / n / "SKILL.md").read_bytes())
-
-                    with ThreadPoolExecutor(workers) as ex:
-                        res = list(ex.map(lambda c: run_claude(c["request"], model), todo))
-                    with out.open("a") as fh:
-                        for c, r in zip(todo, res):
-                            fh.write(json.dumps({**c, "agent": agent, "run": i, "condition": cond, **revs, **r},
-                                                ensure_ascii=False) + "\n")
-                    say(f"run {i} {cond}: " + ", ".join(r["started"] for r in res))
-        finally:
-            for n, f in live.items():
-                if saved[n] is None:
-                    f.unlink(missing_ok=True)
-                else:
-                    f.write_bytes(saved[n])
+        base_p = Path(base)
+        trees = {"before": skills_at(before, base_p / "before"), "after": REPO / "skills"}
+        cfg_dirs = {cond: _stage_claude_dir(base_p / f"cfg-{cond}", trees[cond]) for cond in ("before", "after")}
+        for i in range(runs):
+            order = ["before", "after"]
+            random.Random(i).shuffle(order)
+            for cond in order:
+                todo = [c for c in cases if (c["session"], i, cond) not in done]
+                if not todo:
+                    continue
+                env = {**os.environ, "CLAUDE_CONFIG_DIR": str(cfg_dirs[cond])}
+                with ThreadPoolExecutor(workers) as ex:
+                    res = list(ex.map(lambda c: run_claude(c["request"], model, env=env), todo))
+                with out.open("a") as fh:
+                    for c, r in zip(todo, res):
+                        fh.write(json.dumps({**c, "agent": agent, "run": i, "condition": cond, **revs, **r},
+                                            ensure_ascii=False) + "\n")
+                say(f"run {i} {cond}: " + ", ".join(r["started"] for r in res))
 
 
 def cmd_replay(args: list[str]) -> int:
@@ -313,7 +295,7 @@ def sign_flip(diffs: list[float]) -> float:
 
 
 def report_ab(ans: dict[str, str]) -> None:
-    for agent in ("claude", "codex"):
+    for agent in ("claude",):
         f = OUT / f"ab-{agent}.jsonl"
         if not f.exists():
             continue
@@ -350,7 +332,7 @@ def report_ab(ans: dict[str, str]) -> None:
 def cmd_report() -> int:
     ans = answers()
     say(f"marks: {len(ans)} requests have an answer ({MARKS})")
-    for a in ("claude", "codex"):
+    for a in ("claude",):
         f = OUT / f"{a}.jsonl"
         if not f.exists():
             continue

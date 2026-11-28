@@ -30,17 +30,17 @@ Rules:
 
 Form:
 
-- 40 spoken words or fewer, and 25 or fewer where the definition permits. One sentence part, no full stop. If the exact definition needs more words, move one part of it into a term of its own.
+- Aim for 40 spoken words or fewer (25 or fewer where the definition permits). One sentence part, no full stop. If the exact definition needs more words, consider moving one part of it into a term of its own.
 - **An expression is an equation, not words.** Write each formula, each equation and each letter that stands for a mathematical object as TeX between `$`, in the source's notation: "the set of complex numbers `$\lambda$` for which `$T - \lambda$` has no bounded inverse", "the number `$S(\rho) = -\mathrm{Tr}(\rho \log \rho)$[[S of rho equals minus the trace of rho log rho]]`". The screen shows the equation. The voice says the words in `[[...]]`, or the build's own read-out when the formula is simple. "minus the trace of rho times the logarithm of rho" on the screen is hard to read: never write an expression out in words.
 - Prose stays prose. "a group in which `$ab = ba$` for all elements `$a$` and `$b$`" is right. A line of symbols with no words is not a definition that a listener can follow.
-- No brackets, no semicolons, no contractions, no "etc." in the words. In a formula, write `\mid` and not ` | `.
+- Keep prose clean for speech (avoid "etc." and awkward punctuation). In a formula, write `\mid` and not ` | `.
 - Simple present and active voice where it does not make the definition longer.
 - One word for one thing in every definition. If you write "map", do not also write "mapping", "function" and "arrow" for the same thing.
 - Keep the articles. A plural form gets a plural definition.
 
-## Finalise: the meaning for each sentence
+## Optional per-sentence overrides (`NAME.context.txt`)
 
-The glossary holds the exact definition. The video does not read it out in full each time: that makes the video too long. When the script is final, you write, for each place where the video gives a meaning, the words for that sentence. `build.py --lint` lists the places in `NAME.context.todo.txt`, each with its sentence and the exact definition. You fill in the lines and move them to `NAME.context.txt`.
+By default the video uses the glossary's definition (and its reminder after ` | `). If specific beats benefit from shorter or sentence-tailored wording, run `build.py --lint --context-todo` to write `NAME.context.todo.txt`, edit the entries you want to override, and move them to `NAME.context.txt`.
 
 - **first** (the listener meets the term for the first time): give the definition itself, cut to the conditions that this sentence and this source use. 30 words or fewer. Leave out side conditions that play no part here (a domain, a countability condition, a second equivalent form). If each part matters, keep each part.
 - **reminder** (the listener heard the definition some time ago): give the one key feature that this sentence depends on. 16 spoken words or fewer, and 8 is better. For "the spectrum of D is discrete": "the set of `$\lambda$` where `$D - \lambda$` has no bounded inverse". For "D has compact resolvent" in a sentence on eigenvalues: "the inverse `$(D - \lambda)^{-1}$[[D minus lambda, inverse]]`, a compact operator".

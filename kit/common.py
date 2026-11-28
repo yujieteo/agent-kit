@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -17,9 +16,6 @@ def repo_skills() -> list[str]:
     return sorted(p.name for p in (REPO / "skills").iterdir() if p.is_dir())
 
 
-# Text in a user turn of a Claude Code log that the user did not type as a request:
-# app notices, a /compact or /clear command, and the "Continue" that a resumed
-# session sends. kit/replay.py and kit/search.py both skip it.
 NOT_REQUESTS = ("<local-command", "<command-name>/compact", "<command-name>/clear", "Caveat:",
                 "[Request interrupted", "<task-notification>", "<system-reminder>")
 
@@ -38,18 +34,8 @@ def claude_dir() -> Path:
     return Path(os.environ.get("CLAUDE_CONFIG_DIR") or HOME / ".claude")
 
 
-def apm_home() -> Path:
-    # apm's own default is ~/.apm; agent-kit always passes APM_HOME to apm, so
-    # the lock lives in the XDG data folder whether or not the shell sets it.
-    xdg = Path(os.environ.get("XDG_DATA_HOME") or HOME / ".local/share")
-    return Path(os.environ.get("APM_HOME") or xdg / "apm")
-
-
 def roots(home: Path | None = None) -> dict[str, Path]:
-    """The folder that the install writes to, by short name.
-
-    agents: ~/.agents (apm writes the skills to ~/.agents/skills)
-    """
+    """The folder that the install writes to, by short name."""
     h = home or HOME
     return {"agents": h / ".agents"}
 
@@ -60,18 +46,6 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return "sha256:" + h.hexdigest()
-
-
-def find_tool(name: str, env: str, label: str | None = None) -> str:
-    """The program in $env, else name on PATH; stop with a message when neither is there."""
-    exe = os.environ.get(env) or shutil.which(name)
-    if not exe:
-        raise SystemExit(f"agent-kit: {label or name} is not on PATH (set {env})")
-    return exe
-
-
-def apm_bin() -> str:
-    return find_tool("apm", "AGENT_KIT_APM")
 
 
 def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:

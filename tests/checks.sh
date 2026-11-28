@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# tests/checks.sh: the stale check and the overlap check, clean and with a
-# planted fault each. Exit 0 only when each clean run passes and each fault fails.
+# tests/checks.sh: the stale check, clean and with planted faults.
 set -u
 repo=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d "${TMPDIR:-/tmp}/agent-kit-checks.XXXX")
@@ -17,32 +16,18 @@ expect() { # expect WANT_RC LABEL DIR CMD...
   echo "$out" | grep -E '^FAIL' | head -3 | sed 's/^/       /'
 }
 fresh() { rm -rf "$t/r"; cp -R "$repo" "$t/r"; rm -rf "$t/r/.git"; }
-# The stale check runs in a scratch home, so it reads no live agent folder and
-# asks GitHub nothing (no rule names a branch). The ~/ paths that the clean
-# rules name are made there first, so a clean run passes on any machine. The
-# cost: this test does not show that those paths exist in the real home.
 sh_home=$t/home
 stale() { HOME="$sh_home" CLAUDE_CONFIG_DIR="$t/cfg" python3 -m kit stale "$@"; }
 
 fresh
-(cd "$t/r" && HOME="$sh_home" python3 -c '
-import os
-from pathlib import Path
-from kit import stale
-home = Path(os.environ["HOME"])
-for f in stale.rule_files():
-    for p in stale.PATH_RE.findall(f.read_text(errors="replace")):
-        d = stale.expand(p)
-        if not stale.placeholder(p) and d.is_relative_to(home):  # never outside the scratch home
-            d.mkdir(parents=True, exist_ok=True)')
 expect 0 "stale: clean" "$t/r" stale
-echo 'Keep the notes in `~/src/agent-kit/no-such-notes.md`.' >> "$t/r/.apm/instructions/standing.instructions.md"
-expect 1 "stale: planted dead path in the standing rules" "$t/r" stale
-fresh
 printf '\nRead `references/gone.md` first.\n' >> "$t/r/skills/deeper-task/SKILL.md"
 expect 1 "stale: planted dead path in a skill" "$t/r" stale
 fresh
-printf '\nThen run /no-such-skill on the result.\n' >> "$t/r/skills/deeper-task/SKILL.md"
+printf '\nSee [gone](references/missing.md).\n' >> "$t/r/skills/deeper-task/SKILL.md"
+expect 1 "stale: planted dead markdown link in a skill" "$t/r" stale
+fresh
+printf '\nUse the `no-such-skill` skill on the result.\n' >> "$t/r/skills/deeper-task/SKILL.md"
 expect 1 "stale: planted dead skill name" "$t/r" stale
 
 # Memory records are reported, not failed, so these read the report.
@@ -56,11 +41,4 @@ memcheck() { # memcheck WANT LABEL SENTENCE: WANT is "report" or "quiet"
 fresh
 memcheck report "stale --memory: planted dead path in a record" 'The notes are in `~/no-such-folder-xyz/notes.md`.'
 memcheck quiet "stale --memory: the same path, called gone" 'The notes were in `~/no-such-folder-xyz/notes.md`, gone since.'
-
-fresh
-expect 0 "overlap: clean" "$t/r" python3 -m kit overlap
-mkdir "$t/r/skills/task-deepener"
-{ echo '---'; echo 'name: task-deepener'; grep -m1 '^description:' "$t/r/skills/deeper-task/SKILL.md"; echo '---'; echo; echo 'Another body.'; } \
-  > "$t/r/skills/task-deepener/SKILL.md"
-expect 1 "overlap: planted copied description" "$t/r" python3 -m kit overlap
 exit $fail

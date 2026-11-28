@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # tests/install.sh: install into a scratch home, verify, then plant two
-# faults. Each must turn verify (or lock --check) red. Exit 0 only when the
-# clean run passes and every fault fails.
+# faults (edited installed file, and edited repo source). Exit 0 only when
+# clean runs pass and faults fail.
 set -u
 repo=$(cd "$(dirname "$0")/.." && pwd)
 t=$(mktemp -d "${TMPDIR:-/tmp}/agent-kit-test.XXXX")
 trap 'chmod -R u+w "$t"; rm -rf "$t"' EXIT
 export HOME=$t/home
-export APM_HOME=$t/home/.local/share/apm XDG_CACHE_HOME=$t/home/.cache
+export XDG_CACHE_HOME=$t/home/.cache
 kit() { (cd "$repo" && python3 -m kit "$@") 2>&1; }
 
 fail=0
@@ -30,8 +30,8 @@ expect 1 "fault 1: edited skill file (~/.agents)" kit verify
 cp "$t/keep" "$f"
 expect 0 "back to clean" kit verify
 
-# Fault 2: the repo source edited but hashes.json not rebuilt. Use a copy.
+# Fault 2: repo source edited relative to installed copy.
 cp -R "$repo" "$t/repo"; rm -rf "$t/repo/.git"
 echo planted >> "$t/repo/skills/deeper-task/SKILL.md"
-expect 1 "fault 2: edited skill source, hashes.json stale" bash -c "cd '$t/repo' && python3 -m kit lock --check"
+expect 1 "fault 2: edited skill source differs from installed copy" bash -c "cd '$t/repo' && python3 -m kit verify"
 exit $fail
