@@ -7,7 +7,7 @@ description: Read a whole paper, chapter or book in order as video, in one video
 
 The video is the source read aloud, in order, in the source's own words. The only addition is that a technical word or symbol is followed, in the same sentence, by its definition: the exact one that a textbook gives, written in simple sentences and cut to what matters in that sentence. Straight after the sentence, the technical words inside those definitions get their meanings too, two layers down. A model of the listener's memory decides when: the first time, and then again each time the listener is about to forget. The listener never needs to look at the screen.
 
-The definitions are exact, not simplified. "A space that looks flat near each point" is not a definition of a manifold. Simple Technical English controls the sentence form, not the precision. Read [rules for definitions](references/writing.md) before you write one entry.
+The definitions are exact, not simplified. "A space that looks flat near each point" is not a definition of a manifold. Simplified Technical English controls the sentence form, not the precision. Read [rules for definitions](references/writing.md) before you write one entry.
 
 You write the glossary. Scripts do the rest.
 

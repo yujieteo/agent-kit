@@ -11,7 +11,7 @@ The test: from the definition alone, can the reader decide whether a given objec
 | group | a collection where you can combine any two members and undo each one | a set with an associative binary operation that has an identity element and in which each element has an inverse |
 | state | a rule that gives the average value of each thing that you can measure | a linear functional on a C*-algebra that is positive and takes the value one on the unit |
 | genus | a whole number that measures how complex the curve is | the dimension of the space of regular differential forms on a smooth projective curve |
-| spectrum | the list of special numbers of an operator, like the notes of a drum | the set of complex numbers lambda for which the operator minus lambda times the identity has no bounded inverse |
+| spectrum | the list of special numbers of an operator, like the notes of a drum | the set of complex numbers `$\lambda$` for which `$T - \lambda$` has no bounded inverse |
 | entropy | a number that measures how much information is missing | the number `$-\mathrm{Tr}(\rho \log \rho)$[[minus the trace of rho log rho]]` for a density matrix `$\rho$` |
 | $k$ | the number that sets the size of the triangle | the positive rational number such that the right triangle has the sides `$k(1+x^2)$`, `$k(1-x^2)$` and `$2kx$`, each with its spoken form |
 
@@ -19,10 +19,10 @@ Rules:
 
 - **No analogy, no picture, no purpose in place of the definition.** Not "like", "a kind of", "measures how", "special", "in the role of". The lint warns about these words. What a thing is used for is not what it is.
 - **Use the technical words that the definition needs.** Do not replace "Hilbert space" with "a space where you can measure lengths and angles". Give "Hilbert space" its own entry. The video then gives that meaning too (see "Layers").
-- **Start with the kind of thing**, then the condition: "a ring in which ...", "the group of ...", "a map that ...". Do not start with "for ..." or "given ...": write "the element a times b minus b times a, for two elements a and b of an algebra", because the voice says "commutator means the element ...". For an adjective, write a phrase that can follow "which means": "equal to its adjoint", "such that each open cover has a finite subcover".
+- **Start with the kind of thing**, then the condition: "a ring in which ...", "the group of ...", "a map that ...". Do not start with "for ..." or "given ...": write "the element `$ab - ba$`[[a times b minus b times a]], for two elements `$a$` and `$b$` of an algebra", because the voice says "commutator means the element ...". For an adjective, write a phrase that can follow "which means": "equal to its adjoint", "such that each open cover has a finite subcover".
 - **A theorem, a conjecture or a formula with a name**: give its statement. "Baum-Connes conjecture = the statement that the assembly map from the equivariant K-homology of the classifying space for proper actions to the K-theory of the reduced group C*-algebra is an isomorphism".
-- **A term from physics**: give the exact meaning in physics, with the field equations or the property that defines it, in words.
-- **A symbol**: say what it is in this source, exactly. "the Dirac operator of the spectral triple", "the field of rational numbers", "the genus of the curve C". If the source defines the symbol by a formula, say the formula in words.
+- **A term from physics**: give the exact meaning in physics, with the field equations or defining property written as TeX with spoken forms.
+- **A symbol**: say what it is in this source, exactly. "the Dirac operator of the spectral triple", "the field of rational numbers", "the genus of the curve `$C$`". If the source defines the symbol by a formula, write the formula as TeX between `$` with its spoken form.
 - **A term that the source defines itself**: use the source's definition, in the source's words where you can.
 - **A word with two meanings in the source**: one entry per meaning, with scopes, or a `<key: own words>` mark in the beat.
 - **A phrase with no formal definition** ("the spectral paradigm", "quantum gravity"): say exactly what the phrase refers to. Do not invent a formal definition.

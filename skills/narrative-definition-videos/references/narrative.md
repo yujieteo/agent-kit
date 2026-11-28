@@ -30,7 +30,7 @@ The acts, in this order. Number the headings; the names are yours.
 
 Sentence rules:
 
-- One sentence per line, about 8 to 25 words. Simple present, active voice, Simple Technical English. A sentence that already holds 3 technical words carries no more.
+- One sentence per line, about 8 to 25 words. Simple present, active voice, Simplified Technical English. A sentence that already holds 3 technical words carries no more.
 - Put each technical word where its definition can follow it: "the index pairing of $D$ with ..." works; "the Dixmier trace of $X$" breaks if the definition lands between "trace" and "of". If a reminder would split a phrase, mark the line `[-key]`.
 - When the sentence itself states what a thing is ("Heisenberg's relation is $[p,q]=i\hbar$", "The volume is ..."), mark it `[-key]`. When the next line defines a symbol, mark the symbol on this line.
 - Name theorems and lemmas by the paper's numbers, and state them in full: every hypothesis, the conclusion, "if and only if" where the paper has it.
